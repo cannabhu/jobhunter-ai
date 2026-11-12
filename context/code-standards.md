@@ -104,7 +104,7 @@ export function ComponentName({ jobId, matchScore }: Props) {
 // app/api/agent/find/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { createInsforgeServer } from "@/lib/insforge-server";
+import { createInsforgeServer } from "@/lib/insforge/server";
 
 export async function POST(req: NextRequest) {
   try {
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createInsforgeServer } from "@/lib/insforge-server";
+import { createInsforgeServer } from "@/lib/insforge/server";
 
 export async function saveProfile(formData: ProfileFormData) {
   try {
@@ -194,13 +194,14 @@ export async function discoverJobs(
 
 ```typescript
 // Browser context — Client Components only
-import { insforge } from "@/lib/insforge-client";
+import { insforge } from "@/lib/insforge/client";
 
 // Server context — Server Components, Route Handlers, Server Actions, Agent
-import { createInsforgeServer } from "@/lib/insforge-server";
+import { createInsforgeServer } from "@/lib/insforge/server";
 const insforge = await createInsforgeServer();
 ```
 
+- Server code that only needs the current user calls `getUser()` from `lib/insforge/server.ts` (request-cached)
 - Never use the browser client in server context
 - Never use the server client in browser context
 - Always await createInsforgeServer() — it reads cookies asynchronously
@@ -243,8 +244,9 @@ All environment variables defined in `.env.local` for development. Never hardcod
 
 | Variable                        | Used In                |
 | ------------------------------- | ---------------------- |
-| `NEXT_PUBLIC_INSFORGE_URL`      | lib/insforge-client.ts |
-| `NEXT_PUBLIC_INSFORGE_ANON_KEY` | lib/insforge-client.ts |
+| `NEXT_PUBLIC_INSFORGE_URL`      | lib/insforge/ (client + server) |
+| `NEXT_PUBLIC_INSFORGE_ANON_KEY` | lib/insforge/ (client + server) |
+| `NEXT_PUBLIC_APP_URL`           | actions/auth.ts (OAuth redirect) |
 | `BROWSERBASE_API_KEY`           | lib/browserbase.ts     |
 | `BROWSERBASE_PROJECT_ID`        | lib/browserbase.ts     |
 | `OPENAI_API_KEY`                | agent/ functions       |
@@ -277,7 +279,7 @@ Always use the `@/` alias — never use relative imports that go up more than on
 ```typescript
 // Correct
 import { Button } from "@/components/ui/button";
-import { insforge } from "@/lib/insforge-client";
+import { insforge } from "@/lib/insforge/client";
 import { MATCH_THRESHOLD } from "@/lib/utils";
 
 // Never
@@ -305,7 +307,7 @@ Never install a new package without a clear reason. Before installing anything c
 
 Approved dependencies for this project:
 
-- `@insforge/ssr` — InsForge client
+- `@insforge/sdk` — InsForge client (SSR helpers at `@insforge/sdk/ssr`)
 - `@browserbasehq/sdk` — Browserbase sessions
 - `@browserbasehq/stagehand` — AI browser control
 - `openai` — GPT-4o API

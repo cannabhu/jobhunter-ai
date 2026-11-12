@@ -1,4 +1,4 @@
-import { CtaButtons } from "@/components/homepage/CtaButtons";
+import { AuthCtaButtons } from "@/components/homepage/AuthCtaButtons";
 
 export function Hero() {
   return (
@@ -10,7 +10,7 @@ export function Hero() {
         Stop applying blind. JobPilot finds the jobs, researches the companies, and gives you everything you need to stand out.
       </p>
       <div className="mt-8">
-        <CtaButtons />
+        <AuthCtaButtons />
       </div>
     </section>
   );

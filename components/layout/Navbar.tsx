@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard" },
@@ -10,7 +11,7 @@ const NAV_ITEMS = [
   { label: "Profile", href: "/profile" },
 ];
 
-export function Navbar() {
+export function Navbar({ actions }: { actions: ReactNode }) {
   const pathname = usePathname();
 
   return (
@@ -33,12 +34,7 @@ export function Navbar() {
             );
           })}
         </nav>
-        <Link
-          href="/login"
-          className="justify-self-end rounded-md bg-overlay px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-overlay-dark"
-        >
-          Start for free
-        </Link>
+        <div className="justify-self-end">{actions}</div>
       </div>
     </header>
   );

@@ -35,11 +35,10 @@
 ├── app/
 │   ├── layout.tsx                          → Root layout, PostHog provider
 │   ├── page.tsx                            → Homepage
-│   ├── (auth)/
-│   │   ├── login/
-│   │   │   └── page.tsx                   → Login page
-│   │   └── callback/
-│   │       └── page.tsx                   → OAuth callback handler
+│   ├── login/
+│   │   └── page.tsx                       → Login page (Google + GitHub buttons)
+│   ├── sign-out/
+│   │   └── page.tsx                       → Sign-out confirmation page
 │   ├── dashboard/
 │   │   └── page.tsx                       → Main dashboard
 │   ├── profile/
@@ -49,6 +48,10 @@
 │   │   └── [id]/
 │   │       └── page.tsx                   → Individual job details page
 │   └── api/
+│       ├── auth/
+│       │   ├── callback/route.ts          → OAuth callback — exchanges insforge_code for a session
+│       │   ├── sign-out/route.ts          → Clears session cookies
+│       │   └── refresh/route.ts           → Session refresh for the browser client
 │       ├── agent/
 │       │   ├── find/route.ts              → Trigger Adzuna job discovery
 │       │   └── research/route.ts          → Trigger company research agent
@@ -61,6 +64,7 @@
 │   ├── matcher.ts                         → GPT-4o job matching logic
 │   ├── extractor.ts                       → GPT-4o job description extraction + structuring
 │   └── types.ts                           → Agent-specific TypeScript types
+├── proxy.ts                                → Session refresh + protected-route redirects
 ├── actions/
 │   ├── profile.ts                         → Profile save + update
 │   └── jobs.ts                            → Job status updates
@@ -94,8 +98,9 @@
 │       ├── CompanyResearch.tsx
 │       └── JobActions.tsx
 ├── lib/
-│   ├── insforge-client.ts                 → InsForge browser client instance
-│   ├── insforge-server.ts                 → InsForge server client
+│   ├── insforge/
+│   │   ├── client.ts                      → InsForge browser client instance
+│   │   └── server.ts                      → InsForge server client + getUser()
 │   ├── browserbase.ts                     → Browserbase session creation + management
 │   ├── stagehand.ts                       → Stagehand initialisation with Browserbase session
 │   ├── adzuna.ts                          → Adzuna API client
@@ -292,8 +297,10 @@ Access: authenticated users only, own files only.
 - Provider: InsForge Auth
 - Methods: Google OAuth, GitHub OAuth
 - Protected routes: /dashboard, /profile, /find-jobs, /find-jobs/[id]
+- Also protected: /sign-out
 - Public routes: /, /login
-- Middleware in middleware.ts checks session on every protected route
+- `proxy.ts` (Next 16's replacement for middleware.ts) refreshes the session and redirects signed-out users away from protected routes
+- Pages must still verify the user with `getUser()` — the proxy only checks that a valid-looking token cookie exists
 - On login → redirect to /dashboard
 
 ---
@@ -303,36 +310,18 @@ Access: authenticated users only, own files only.
 Two separate InsForge instances — never mix them:
 
 ```typescript
-// lib/insforge-client.ts
-// Browser-side — used in client components for auth state
-import { createBrowserClient } from "@insforge/ssr";
-export const insforge = createBrowserClient(
-  process.env.NEXT_PUBLIC_INSFORGE_URL!,
-  process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
-);
+// lib/insforge/client.ts
+// Browser-side — reads the SSR session; auth mutations run on the server
+import { createBrowserClient } from "@insforge/sdk/ssr";
+export const insforge = createBrowserClient();
 
-// lib/insforge-server.ts
+// lib/insforge/server.ts
 // Server-side — used in API routes, Server Actions, agent code
-import { createServerClient } from "@insforge/ssr";
 import { cookies } from "next/headers";
+import { createServerClient } from "@insforge/sdk/ssr";
 
-export const createInsforgeServer = async () => {
-  const cookieStore = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_INSFORGE_URL!,
-    process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => cookieStore.getAll(),
-        setAll: (cookiesToSet) => {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options),
-          );
-        },
-      },
-    },
-  );
-};
+export const createInsforgeServer = async () =>
+  createServerClient({ cookies: await cookies() });
 ```
 
 ---

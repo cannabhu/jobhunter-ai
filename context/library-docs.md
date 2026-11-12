@@ -32,62 +32,45 @@ Never rely on general training knowledge alone for library APIs — they change 
 
 ### Client vs Server
 
-Two separate instances — never mix them:
+Package is `@insforge/sdk` — the SSR helpers live at `@insforge/sdk/ssr` (there is no `@insforge/ssr` package). Env: `NEXT_PUBLIC_INSFORGE_URL`, `NEXT_PUBLIC_INSFORGE_ANON_KEY` (read automatically by the SSR helpers).
 
 ```typescript
-// lib/insforge-client.ts — browser context only
-import { createBrowserClient } from "@insforge/ssr";
-
-export const insforge = createBrowserClient(
-  process.env.NEXT_PUBLIC_INSFORGE_URL!,
-  process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
-);
+// lib/insforge/client.ts — browser context only (reads the SSR session; no auth mutations)
+import { createBrowserClient } from "@insforge/sdk/ssr";
+export const insforge = createBrowserClient();
 ```
 
 ```typescript
-// lib/insforge-server.ts — server context only
-import { createServerClient } from "@insforge/ssr";
+// lib/insforge/server.ts — server context only
 import { cookies } from "next/headers";
+import { createServerClient } from "@insforge/sdk/ssr";
 
-export const createInsforgeServer = async () => {
-  const cookieStore = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_INSFORGE_URL!,
-    process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => cookieStore.getAll(),
-        setAll: (cookiesToSet) => {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options),
-          );
-        },
-      },
-    },
-  );
-};
+export const createInsforgeServer = async () =>
+  createServerClient({ cookies: await cookies() });
 ```
 
 **Rules:**
 
-- Browser client — Client Components, browser-side auth state, realtime subscriptions
+- Browser client — Client Components, browser-side session reads, realtime subscriptions
 - Server client — Server Components, API routes, Server Actions, agent functions
 - Never use browser client in server context
 - Never use server client in browser context
+- Auth mutations (sign in/out, OAuth) run on the server via `createAuthActions` so tokens stay in httpOnly cookies
+- Session refresh runs in `proxy.ts` via `updateSession` from `@insforge/sdk/ssr/middleware`
 
 ---
 
 ### Auth
 
 ```typescript
-// Get current user in server context
+// Get current user in server context (helper: lib/insforge/server.ts → getUser())
 const insforge = await createInsforgeServer();
-const {
-  data: { user },
-  error,
-} = await insforge.auth.getUser();
+const { data } = await insforge.auth.getCurrentUser();
+const user = data?.user;
 if (!user) redirect("/login");
 ```
+
+With `cacheComponents`, reading the session must sit behind `<Suspense>`.
 
 ---
 

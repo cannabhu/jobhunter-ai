@@ -1,4 +1,4 @@
-import { CtaButtons } from "@/components/homepage/CtaButtons";
+import { AuthCtaButtons } from "@/components/homepage/AuthCtaButtons";
 
 export function BottomCta() {
   return (
@@ -11,7 +11,7 @@ export function BottomCta() {
           Set up your profile, upload your resume, and start finding matches in minutes.
         </p>
         <div className="mt-8">
-          <CtaButtons />
+          <AuthCtaButtons />
         </div>
       </section>
       <div className="h-10 bg-surface" aria-hidden />

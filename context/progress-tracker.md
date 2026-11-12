@@ -7,8 +7,8 @@ Update this file after every completed feature. Any AI agent reading this should
 ## Current Status
 
 **Phase:** 1 — Foundation
-**Last completed:** 01 Homepage
-**Next:** 02 Auth
+**Last completed:** 02 Auth (code complete; end-to-end OAuth login still to be confirmed by hand — see Notes)
+**Next:** 03 PostHog Initialization
 
 ---
 
@@ -17,7 +17,7 @@ Update this file after every completed feature. Any AI agent reading this should
 ### Phase 1 — Foundation
 
 - [x] 01 Homepage
-- [ ] 02 Auth
+- [x] 02 Auth
 - [ ] 03 PostHog Initialization
 - [ ] 04 Database Schema
 
@@ -50,14 +50,25 @@ Update this file after every completed feature. Any AI agent reading this should
 
 ## Decisions Made During Build
 
-- Homepage CTAs link to /login for now; auth-aware redirect to /dashboard comes with 02 Auth.
+- Homepage CTAs are auth-aware: signed out → "Get Started"/"Start for free" → /login; signed in → "Go to Dashboard" → /dashboard (Find Your First Match → /find-jobs). Session is read behind `<Suspense>` (AuthCtaButtons, NavbarActions) so the page stays partially prerendered under `cacheComponents`.
 - Added `.bg-hero-gradient` utility in globals.css (built from accent-light/info-light tokens) for the pastel hero/CTA backgrounds.
 - Navbar is a client component only for `usePathname` active state.
 - Root layout switched from Geist to Inter via `--font-sans`, per ui-rules.md.
 - Next 16 `next/image` uses `preload` (not `priority`).
+- Auth uses `@insforge/sdk/ssr` (`@insforge/ssr` does not exist on npm). Server-side OAuth: Server Actions in `actions/auth.ts` start the flow and store the PKCE verifier in an httpOnly `insforge_code_verifier` cookie; `/api/auth/callback` exchanges `insforge_code`; `/api/auth/sign-out` and `/api/auth/refresh` complete the set. Sign-out lives on its own protected `/sign-out` confirmation page (not in the navbar); later pages (e.g. Profile) should link to it.
+- Next 16 renamed middleware to `proxy.ts`. It runs `updateSession`, redirects signed-out users from /dashboard, /profile, /find-jobs(/**) to /login, and signed-in users from /login to /dashboard.
+- Staying on Tailwind v4 — AGENTS.md's "Tailwind 3.4" line is InsForge boilerplate and does not apply.
+- Env vars live in `.env.local` (gitignored): NEXT_PUBLIC_INSFORGE_URL, NEXT_PUBLIC_INSFORGE_ANON_KEY, NEXT_PUBLIC_APP_URL.
 
 ---
 
 ## Notes
 
 _Add notes here as the build progresses — workarounds, patterns, anything that differs from the context files._
+
+- **Before the first real login:** add `http://localhost:3000/api/auth/callback` to `allowedRedirectUrls` in the InsForge dashboard (it is currently empty). Google and GitHub providers are already enabled, and OAuth init was verified for both.
+- Verified: build, lint, tsc pass; proxy redirects; callback rejects a missing code. Not yet verified: a full browser sign-in round trip.
+- PostHog hook points: `identify` after the callback redirect lands, `reset` after the sign-out redirect (feature 03).
+- Post-review fixes: `getUser()` is wrapped in React `cache()` (one InsForge call per request); proxy redirects carry over refreshed/cleared session cookies; callback, sign-out and sign-in action have try/catch with `[prefix]` logging (sign-out always clears cookies locally); architecture.md and code-standards.md updated to the real paths (`lib/insforge/{client,server}.ts`, `@insforge/sdk/ssr`, `proxy.ts`).
+- **Open for feature 14+:** the proxy only checks that a valid-looking, unexpired token cookie exists (a forged cookie passes it). Protected pages must verify with `getUser()`, and the invalid-session case needs handling so `redirect("/login")` plus the proxy's `/login` → `/dashboard` rule can't loop.
+- Under `cacheComponents`, any `cookies()`/`searchParams` read must sit behind `<Suspense>` (see AuthCtaButtons, NavbarActions, login ErrorNotice).
