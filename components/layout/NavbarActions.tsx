@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { TrackedLink } from "@/components/analytics/TrackedLink";
 import { Suspense } from "react";
 import { getUser } from "@/lib/insforge/server";
 
@@ -7,9 +7,9 @@ const button =
 
 function SignedOut() {
   return (
-    <Link href="/login" className={button}>
+    <TrackedLink location="navbar" href="/login" className={button}>
       Start for free
-    </Link>
+    </TrackedLink>
   );
 }
 
@@ -17,9 +17,9 @@ async function SessionActions() {
   if (!(await getUser())) return <SignedOut />;
 
   return (
-    <Link href="/dashboard" className={button}>
+    <TrackedLink location="navbar" href="/dashboard" className={button}>
       Go to Dashboard
-    </Link>
+    </TrackedLink>
   );
 }
 

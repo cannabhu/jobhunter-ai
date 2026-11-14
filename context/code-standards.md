@@ -229,8 +229,13 @@ All PostHog events must use these exact event names. Never invent new event name
 | `job_found`          | Each job discovered and saved              | userId, source, matchScore |
 | `profile_completed`  | User saves complete profile for first time | userId                     |
 | `company_researched` | Company research dossier generated         | userId, jobId, company     |
+| `cta_clicked`        | Homepage/navbar CTA link clicked           | location, destination, label |
+| `user_signed_in`     | Right after a successful OAuth callback (one-shot cookie) | (identified via userId) |
+| `user_signed_out`    | Sign-out confirmed on /sign-out            | —                          |
+| `oauth_sign_in_started` | Provider button submitted on /login     | provider                   |
+| `sign_in_failed`     | /login rendered with ?error=oauth          | reason                     |
 
-These four events are the only events in this project. Do not add more without updating this list first.
+These are the only events in this project. Do not add more without updating this list first.
 
 `job_found` powers the Jobs Found Over Time and Match Score Distribution dashboard charts.
 `company_researched` powers the Company Research Activity dashboard chart.
@@ -252,8 +257,8 @@ All environment variables defined in `.env.local` for development. Never hardcod
 | `OPENAI_API_KEY`                | agent/ functions       |
 | `ADZUNA_APP_ID`                 | lib/adzuna.ts          |
 | `ADZUNA_APP_KEY`                | lib/adzuna.ts          |
-| `NEXT_PUBLIC_POSTHOG_KEY`       | lib/posthog-client.ts  |
-| `NEXT_PUBLIC_POSTHOG_HOST`      | lib/posthog-client.ts  |
+| `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` | instrumentation-client.ts, instrumentation.ts |
+| `NEXT_PUBLIC_POSTHOG_HOST`      | instrumentation-client.ts, instrumentation.ts |
 
 `NEXT_PUBLIC_` prefix means the variable is exposed to the browser. Never add `NEXT_PUBLIC_` to secret keys.
 

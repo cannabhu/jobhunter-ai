@@ -7,8 +7,8 @@ Update this file after every completed feature. Any AI agent reading this should
 ## Current Status
 
 **Phase:** 1 — Foundation
-**Last completed:** 02 Auth (code complete; end-to-end OAuth login still to be confirmed by hand — see Notes)
-**Next:** 03 PostHog Initialization
+**Last completed:** 03 PostHog Initialization (client init + identify/reset + event tracking; not yet verified against live PostHog data). Before that: 02 Auth (code complete; end-to-end OAuth login still to be confirmed by hand — see Notes)
+**Next:** 04 Database Schema
 
 ---
 
@@ -18,7 +18,7 @@ Update this file after every completed feature. Any AI agent reading this should
 
 - [x] 01 Homepage
 - [x] 02 Auth
-- [ ] 03 PostHog Initialization
+- [x] 03 PostHog Initialization
 - [ ] 04 Database Schema
 
 ### Phase 2 — Profile Page
@@ -72,3 +72,4 @@ _Add notes here as the build progresses — workarounds, patterns, anything that
 - Post-review fixes: `getUser()` is wrapped in React `cache()` (one InsForge call per request); proxy redirects carry over refreshed/cleared session cookies; callback, sign-out and sign-in action have try/catch with `[prefix]` logging (sign-out always clears cookies locally); architecture.md and code-standards.md updated to the real paths (`lib/insforge/{client,server}.ts`, `@insforge/sdk/ssr`, `proxy.ts`).
 - **Open for feature 14+:** the proxy only checks that a valid-looking, unexpired token cookie exists (a forged cookie passes it). Protected pages must verify with `getUser()`, and the invalid-session case needs handling so `redirect("/login")` plus the proxy's `/login` → `/dashboard` rule can't loop.
 - Under `cacheComponents`, any `cookies()`/`searchParams` read must sit behind `<Suspense>` (see AuthCtaButtons, NavbarActions, login ErrorNotice).
+- PostHog event tracking added for existing surfaces: `cta_clicked` (via `components/analytics/TrackedLink.tsx`; locations hero / bottom_cta / navbar), `user_signed_in` (in `instrumentation-client.ts`, gated by the one-shot `jp_just_signed_in` cookie set in `/api/auth/callback`), `sign_in_failed` (`SignInFailedTracker` on /login; strips `?error` so reloads don't recount), plus existing `oauth_sign_in_started` and `user_signed_out`. Events listed in code-standards.md.

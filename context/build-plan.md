@@ -53,11 +53,11 @@ Set up PostHog before any events fire. Must be done before any agent features.
 
 **Logic:**
 
-- Create lib/posthog-client.ts — PostHog browser client, initialized with NEXT_PUBLIC_POSTHOG_KEY and NEXT_PUBLIC_POSTHOG_HOST
-- Create lib/posthog-server.ts — PostHog server client with flushAt: 1 and flushInterval: 0
-- Initialize PostHog in root app layout — wraps entire app
-- posthog.identify() called after successful login with user ID
-- posthog.reset() called on logout
+- Browser client: `instrumentation-client.ts` (Next.js loads it on every page) calls `posthog.init` with NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN and NEXT_PUBLIC_POSTHOG_HOST, with `capture_exceptions` on. No provider in the root layout is needed
+- `posthog.identify()` runs in the same file once `insforge.auth.getCurrentUser()` returns a user; `user_signed_in` fires once per sign-in via the one-shot `jp_just_signed_in` cookie set by `/api/auth/callback`
+- `posthog.reset()` is called on /sign-out
+- `instrumentation.ts` exports an OTel logger that sends server diagnostics to PostHog logs (not events); `app/global-error.tsx` reports render errors
+- Server client (`lib/posthog-server.ts`, `posthog-node`, `flushAt: 1`, `flushInterval: 0`) is **deferred** until the first server-side event is built (`job_found`, `company_researched`)
 
 ---
 

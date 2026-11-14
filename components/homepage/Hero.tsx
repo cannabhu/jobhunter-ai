@@ -10,7 +10,7 @@ export function Hero() {
         Stop applying blind. JobPilot finds the jobs, researches the companies, and gives you everything you need to stand out.
       </p>
       <div className="mt-8">
-        <AuthCtaButtons />
+        <AuthCtaButtons location="hero" />
       </div>
     </section>
   );
