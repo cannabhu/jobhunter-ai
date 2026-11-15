@@ -39,7 +39,12 @@ async function JobDetailsContent({ params }: { params: Params }) {
       <MatchReasoning reason={job.matchReason} />
       <SkillsComparison matched={job.matchedSkills} missing={job.missingSkills} />
       <JobDescription description={job.aboutRole} postUrl={job.sourceUrl} />
-      <CompanyResearch company={job.company} />
+      <CompanyResearch
+        jobId={job.id}
+        company={job.company}
+        dossier={job.companyResearch}
+        researchedLabel={job.researchedLabel}
+      />
       <JobActions company={job.company} applyUrl={job.sourceUrl} />
     </div>
   );

@@ -24,7 +24,8 @@ Return ONLY valid JSON of this shape:
 /** OpenAI could not be reached or refused the call (no credits, bad key, outage, timeout). Not the user's fault. */
 export class JobScoringUnavailableError extends Error {}
 
-function describeProfile(profile: ProfileRow): string {
+/** The saved profile as plain text for a prompt. Shared with the company research agent. */
+export function describeProfile(profile: ProfileRow): string {
   const values = rowToFormValues(profile);
   const roles = values.workExperience
     .filter((role) => role.title !== "" || role.company !== "")

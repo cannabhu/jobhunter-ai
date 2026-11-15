@@ -7,10 +7,11 @@ export type AgentLogLevel = "info" | "success" | "warning" | "error";
 /**
  * Writes one human readable line to agent_logs. Never throws: a logging failure must not fail the run,
  * so it only reaches the server console. Pass messages that carry no tokens, keys or raw error objects.
+ * `runId` is null for work that has no agent_runs row, such as company research.
  */
 export async function logAgent(
   insforge: InsforgeServer,
-  runId: string,
+  runId: string | null,
   userId: string,
   level: AgentLogLevel,
   message: string,

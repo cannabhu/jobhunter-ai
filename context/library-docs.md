@@ -243,99 +243,84 @@ const jobRecord = {
 
 ## Browserbase
 
-**Check first:** Check AGENTS.md for an installed Browserbase skill. If a Browserbase MCP server is configured — use it. The skill/MCP will have the latest session management and API patterns.
+**Check first:** Check AGENTS.md for an installed Browserbase skill (none is installed at the moment). Use the Stagehand docs (docs.stagehand.dev/v4) and the installed types in `node_modules/@browserbasehq/stagehand/dist/index.d.mts`; the API changed between v3 and v4.
 
-### Session Creation — Company Research
+### Session creation — company research
+
+Stagehand v4 (installed: 4.4.x) creates the session itself. There is no `lib/browserbase.ts`, no `bb.sessions.create` and no `browserbaseSessionID`.
 
 ```typescript
-import Browserbase from "@browserbasehq/sdk";
+import { browserbase } from "@browserbasehq/stagehand";
 
-const bb = new Browserbase({ apiKey: process.env.BROWSERBASE_API_KEY! });
-
-// Single session for company research — sequential page visits
-const session = await bb.sessions.create({
-  projectId: process.env.BROWSERBASE_PROJECT_ID!,
-  timeout: 120, // 2 minute session — visits 3-4 pages max
+const browser = await browserbase.launch({
+  apiKey: process.env.BROWSERBASE_API_KEY!,
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
+  api_timeout: 120, // seconds; the session is ended by Browserbase after this (minimum 60)
+  browserSettings: { allowedDomains: ["example.com"] }, // main-frame navigations only; subdomains allowed
 });
 ```
 
-**Important — Browserbase runs independently from your Next.js server:**
-Browserbase sessions run on Browserbase's cloud infrastructure, not inside your Next.js API route. The API route triggers the Browserbase session and returns a response while the session continues running independently on Browserbase's platform. Do not add `maxDuration` or any timeout configuration to Next.js API routes to accommodate Browserbase session length.
+**Important — the route drives the browser.** Stagehand runs in our API route and every `goto`/`extract` is a call the route waits on, so the route needs `export const maxDuration = 120` (`app/api/agent/research/route.ts`). A run is about 25s per page.
 
 **Rules:**
 
 - Always use single sessions — never parallel sessions (free plan limit)
-- Session timeout is 120 seconds — sufficient for 3-4 page visits
-- Always end sessions cleanly — call stagehand.close() when done
+- `api_timeout` is 120 seconds; the agent stops starting pages after a 70s budget and closes the session at 85s (`agent/research.ts`)
+- Always end sessions cleanly — `await stagehand.close()` then `await browser.close()`, in a `finally`
 - Project ID always from `process.env.BROWSERBASE_PROJECT_ID` — never hardcode
-- Browserbase client lives in `lib/browserbase.ts` — always import from there
+- Restrict navigation with `allowedDomains` to the company's own domain
+- `next.config.ts` lists `@browserbasehq/stagehand` in `serverExternalPackages` (bundling it fails)
+- `zod` is pinned to exactly the version Stagehand pins (4.6.6); a second copy breaks the schema types
 
 ---
 
 ## Stagehand
 
-**Check first:** Check AGENTS.md for an installed Stagehand skill. If a Stagehand MCP server is configured — use it. The skill/MCP will have the latest act() and extract() patterns.
+**Check first:** Check AGENTS.md for an installed Stagehand skill (none is installed at the moment). Read the installed types before using an option.
 
 ### Initialisation
 
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  apiKey: process.env.BROWSERBASE_API_KEY!,
-  projectId: process.env.BROWSERBASE_PROJECT_ID!,
-  browserbaseSessionID: session.id,
-  model: { modelName: "openai/gpt-4o", apiKey: process.env.OPENAI_API_KEY! },
-  disablePino: true,
+const browser = await browserbase.launch({ apiKey, projectId, api_timeout: 120 });
+const stagehand = await Stagehand.create({
+  browser,
+  model: { modelName: "openai/gpt-4o", apiKey: process.env.OPENAI_API_KEY! }, // "provider/model" names only
+  logging: { level: "off" }, // its CDP chatter is harmless; failures still throw
 });
-
-await stagehand.init();
-const page = stagehand.context.activePage()!;
+const [page] = await browser.context.pages(); // pages() is async
 ```
 
 ### extract()
 
+`extract(instruction, zodSchema, options?)` — positional arguments, and the result is `{ data }`.
+
 ```typescript
 import { z } from "zod";
 
-const result = await stagehand.extract({
-  instruction:
-    "Extract the company overview, main product description, and any technology mentions from this page.",
-  schema: z.object({
-    companyOverview: z.string().optional(),
-    mainProduct: z.string().optional(),
-    techMentions: z.array(z.string()).optional(),
-    navLinks: z
-      .array(
-        z.object({
-          label: z.string(),
-          url: z.string(),
-        }),
-      )
-      .optional(),
+const { data } = await stagehand.extract(
+  "Extract the company overview and the internal links most worth visiting.",
+  z.object({
+    oneLiner: z.string(),
+    pageLinks: z.array(z.object({ url: z.string().url(), kind: z.string() })),
   }),
-});
+  { page, timeout: 30_000 },
+);
 ```
+
+**Link fields must be `z.string().url()`.** Stagehand has the model pick an element and maps it to the real address only for URL fields; with a plain `z.string()` the value comes back as an element id such as `0-2448`.
 
 ### act()
 
 ```typescript
 // Always wrap in try/catch
 try {
-  await stagehand.act({
-    action: "Click the About link in the navigation",
-  });
+  await stagehand.act("Click the About link in the navigation");
 } catch (error) {
-  await logAgentError(jobId, null, error);
+  // log to agent_logs and continue
 }
 ```
-
-## Company Research Section
-
-Replace the existing Stagehand "Company Research Pattern" section in library-docs.md with this:
-
----
 
 ### Company Research Pattern
 
@@ -344,61 +329,39 @@ Job description and user profile come from DB — never re-fetch what you alread
 Browser's only job is the company website.
 
 ```typescript
-// Step 1 — Homepage extraction
-const homepageData = await stagehand.extract({
-  instruction:
-    "This is a company's homepage. Capture what the company actually does, who it's for, and any concrete signals (funding, customers, scale, mission, recent launches). Then find the internal links most worth visiting to research them as an employer.",
-  schema: z.object({
+// Step 1 — Homepage extraction (positional arguments; the result is { data })
+const { data: homepageData } = await stagehand.extract(
+  "This is a company's homepage. Capture what the company actually does, who it's for, and any concrete signals (funding, customers, scale, mission, recent launches). Then find the internal links most worth visiting to research them as an employer.",
+  z.object({
     oneLiner: z.string().describe("What the company does in one sentence"),
-    productSummary: z
-      .string()
-      .describe("What they build/sell and who it's for"),
-    signals: z
-      .array(z.string())
-      .describe("Funding, notable customers, scale, mission, recent news"),
+    productSummary: z.string().describe("What they build/sell and who it's for"),
+    signals: z.array(z.string()).describe("Funding, notable customers, scale, mission, recent news"),
     pageLinks: z
       .array(
         z.object({
-          url: z.string(),
-          kind: z.enum([
-            "about",
-            "careers",
-            "blog",
-            "engineering",
-            "product",
-            "team",
-            "other",
-          ]),
+          url: z.string().url(), // .url() so Stagehand returns real addresses, not element ids
+          kind: z.string().describe("One of: about, careers, blog, engineering, product, team, other"),
         }),
       )
       .describe("Internal links worth visiting"),
   }),
-});
+  { page, timeout: 30_000 },
+);
 
 // If oneLiner and productSummary are empty — wrong site or parked domain
 // Skip to synthesis with job description and profile only
-if (!homepageData.oneLiner && !homepageData.productSummary) {
-  await stagehand.close();
-  // proceed to synthesis with empty companyResearch
-}
 
-// Step 2 — Sub-page extraction (max 3, prefer about/blog/engineering/product over careers)
-const subPageData = await stagehand.extract({
-  instruction:
-    "Extract substance that helps a candidate understand this company before applying: what they do, their values and how they work, the specific technologies and tools they use, notable projects or customers, and how the team operates. Ignore nav, footers, cookie banners, and generic marketing copy.",
-  schema: z.object({
+// Step 2 — Sub-page extraction (max 3, prefer about/product/engineering/blog over careers: pickSubPages())
+const { data: subPageData } = await stagehand.extract(
+  "Extract substance that helps a candidate understand this company before applying: what they do, their values and how they work, the specific technologies and tools they use, notable projects or customers, and how the team operates. Ignore nav, footers, cookie banners, and generic marketing copy.",
+  z.object({
     keyPoints: z.array(z.string()),
-    technologies: z
-      .array(z.string())
-      .describe("Specific languages, frameworks, tools, platforms"),
-    valuesOrCulture: z
-      .array(z.string())
-      .describe("Stated values, working style, team norms"),
-    notable: z
-      .array(z.string())
-      .describe("Customers, funding, scale, projects, awards"),
+    technologies: z.array(z.string()).describe("Specific languages, frameworks, tools, platforms"),
+    valuesOrCulture: z.array(z.string()).describe("Stated values, working style, team norms"),
+    notable: z.array(z.string()).describe("Customers, funding, scale, projects, awards"),
   }),
-});
+  { page, timeout: 30_000 },
+);
 
 // Step 3 — GPT-4o synthesis (after browser closes)
 // Feed three data sources: company research + job from DB + profile from DB
@@ -469,7 +432,7 @@ const response = await openai.chat.completions.create({
 
 - Always use `extract()` with a Zod schema — never parse raw HTML or use regex
 - Always wrap every `act()` and `extract()` in try/catch
-- Always call `await stagehand.close()` when done — ends the Browserbase session
+- Always call `await stagehand.close()` then `await browser.close()` in a `finally` — ends the Browserbase session
 - Model is always `gpt-4o` — never use other models
 - Temperature is `0.4` for synthesis — grounded but flexible enough to make real connections
 - Max 3 sub-pages — never exceed this on free plan
@@ -477,6 +440,9 @@ const response = await openai.chat.completions.create({
 - Job description and profile always come from DB — never re-fetch via browser
 - If browser research returns empty — still run synthesis with job + profile only
 - yourEdge, gapsToAddress, and smartQuestions are the most valuable fields — never skip them
+- `sources` is filled by code from the pages actually visited, never from the model's answer, and the model is not asked for it; the model's JSON goes through `parseModelDossier()` (`lib/companyResearch.ts`) before it is saved
+- Synthesis uses `max_tokens` 1400: 800 cuts the dossier JSON off; a `finish_reason` of `length` is treated as unusable
+- The employer's homepage is found by following the Adzuna `source_url` server-side and skipping job boards and ATS domains (`homepageFromUrl`), with `https://www.{company}.com` as the fallback
 
 ## OpenAI GPT-4o
 
@@ -516,7 +482,7 @@ const result = JSON.parse(response.choices[0].message.content!);
 **Max tokens:**
 
 - Job matching + scoring: `300`
-- Company research synthesis: `800`
+- Company research synthesis: `1400` (800 truncates the dossier JSON)
 - Resume generation: `1000` (the model returns only a summary and short bullets; the PDF facts come from the DB)
 - Profile extraction from resume: `1500` (800 truncates the JSON for a resume with three roles)
 

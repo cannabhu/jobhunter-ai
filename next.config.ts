@@ -6,7 +6,8 @@ const nextConfig: NextConfig = {
     agentFeedback: true,
   },
   // pdf-parse ships its own pdf.js worker; bundling it breaks the worker lookup, so load it as a plain Node module.
-  serverExternalPackages: ["pdf-parse"],
+  // Stagehand locates its bundled browser extension relative to its own files, which bundling breaks the same way.
+  serverExternalPackages: ["pdf-parse", "@browserbasehq/stagehand"],
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

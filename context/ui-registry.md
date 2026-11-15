@@ -241,6 +241,22 @@ Built from `context/designs/job-details.png` (1418px frame, sizes measured from 
 
 **Pattern notes:** this page's buttons use `rounded-lg` and `px-4 py-2`, as in the design, while the profile and Find Jobs buttons are `rounded-md`; the two sets are not mixed on one screen. Section headings come in two forms: an uppercase `text-xs` label for the AI and skills cards, and `text-base font-semibold` for Job Description and Company Research. Empty states are `text-sm text-text-muted`. The Research Company button has no handler until feature 13.
 
+**Feature 13 additions (Company Research card, client component):** files `components/job-details/CompanyResearch.tsx`, `DossierView.tsx`. No design exists for the filled card, so it reuses the page's existing tokens. Last updated: 2026-11-15
+
+| Part | Class / behaviour |
+| --- | --- |
+| Button | Same size and position as before (`rounded-lg px-4 py-2 text-sm font-medium shadow-card`). No dossier yet: primary (`bg-accent text-accent-foreground hover:bg-accent-dark`), "Research Company", `Search` icon. Dossier exists: secondary (`border border-border bg-surface text-text-primary hover:bg-surface-secondary`), "Refresh research", `RefreshCw` icon. Busy: `LoaderCircle animate-spin`, "Researching...", `disabled:cursor-not-allowed disabled:opacity-70` |
+| Status line | `role="status" border-b border-border px-6 py-3 text-sm text-text-secondary`, directly under the header while the run (and the page refresh after it) is pending |
+| Error line | `role="alert"`, same box, `text-error` |
+| Dossier body | `flex flex-col gap-6 px-6 py-6`; each block is a label `text-xs font-semibold tracking-wide text-text-secondary uppercase` plus content |
+| Paragraph (Company Overview, Why This Role) | `mt-2 text-sm leading-6 text-text-primary` |
+| Tech stack chips | `flex flex-wrap gap-2`; chip `rounded-full bg-info-lightest px-3 py-1 text-xs font-medium text-info-foreground` |
+| Bullet lists (Culture, Gaps to Address, Smart Questions to Ask, Interview Prep) | `mt-2 list-disc space-y-1.5 pl-5 text-sm leading-6 text-text-primary marker:text-text-muted`; a block with no items is left out |
+| Your Edge (the highlight) | `rounded-lg border border-accent-light bg-accent-muted p-4`, label `text-accent`, same bullet list inside |
+| Footer | `border-t border-border pt-4`; `text-xs leading-5 text-text-muted`: "Sources:" with underlined links (`target="_blank" rel="noopener noreferrer"`, label is host + path) or, with none, "We couldn't read the company's website, so this briefing comes from the job post and your profile only."; below it "Researched 2 hours ago" |
+
+**Pattern notes:** tech chips use the info tint because the success/accent chip colours already mean "matched" and "gap" on this page. The empty state is unchanged.
+
 ### AppNavbar bar vs wrapper (feature 12)
 
 `AppNavbarBar` holds the markup and classes documented under AppNavbar (unchanged); `AppNavbar` only supplies `usePathname()`. `app/(app)/layout.tsx` wraps it in `<Suspense fallback={<AppNavbarBar pathname={null} />}>`, so on `/find-jobs/[id]` the bar renders at once with no active item and the underline appears when the pathname resolves.

@@ -65,7 +65,7 @@
 │       │   └── extract/route.ts           → Extract profile data from uploaded resume PDF
 ├── agent/
 │   ├── adzuna.ts                          → discoverJobs(): search Adzuna, skip already-saved jobs, score the new ones, insert (feature 10)
-│   ├── research.ts                        → Company research — Browserbase + Stagehand + GPT-4o
+│   ├── research.ts                        → researchCompany(): resolveHomepage → one Stagehand/Browserbase session → GPT-4o dossier. Always returns a dossier unless GPT-4o fails
 │   ├── matcher.ts                         → scoreJob(): one GPT-4o call per job against the saved profile (feature 10)
 │   ├── resumeExtractor.ts                 → GPT-4o resume text → form-shaped profile data (feature 07)
 │   ├── resumeWriter.ts                    → GPT-4o profile → resume summary + role bullets (feature 08)
@@ -117,7 +117,8 @@
 │       ├── MatchReasoning.tsx             → AI Match Reasoning card
 │       ├── SkillsComparison.tsx           → "You have" / "Gap skills" chips
 │       ├── JobDescription.tsx             → Job Description card (Adzuna snippet)
-│       ├── CompanyResearch.tsx            → Empty state now; dossier view comes with feature 13
+│       ├── CompanyResearch.tsx            → Company Research card (client): Research / Refresh button, status + error line, empty state, then DossierView
+│       ├── DossierView.tsx                → The 9-field dossier (overview, tech chips, culture, why this role, Your Edge, gaps, questions, prep, sources)
 │       ├── JobActions.tsx                 → Apply Now at {company}
 │       └── SectionIcon.tsx                → Round icon that leads a card heading
 ├── lib/
@@ -125,11 +126,11 @@
 │   │   ├── client.ts                      → InsForge browser client instance
 │   │   ├── server.ts                      → InsForge server client + getUser()
 │   │   ├── profile.ts                     → getProfile() — reads the profiles row, creating it on first use
-│   │   ├── jobs.ts                        → getSavedJobScores() (repeat-search lookup), listJobs(query) — filtered, sorted, 20 per page (Find Jobs page) — and getJobDetail(id) (job details page)
+│   │   ├── jobs.ts                        → getSavedJobScores() (repeat-search lookup), listJobs(query) — filtered, sorted, 20 per page (Find Jobs page) — getJobDetail(id) (job details page, with the saved dossier), getJobForResearch(id) and saveCompanyResearch()
 │   │   ├── agentLogs.ts                   → logAgent(): one line to agent_logs, never throws
 │   │   └── resumeStorage.ts               → downloadResume(): reads the private resume with retries and real-error logging (file, extract and generate routes)
-│   ├── browserbase.ts                     → Browserbase session creation + management
-│   ├── stagehand.ts                       → Stagehand initialisation with Browserbase session
+│   ├── companyResearch.ts                 → Pure research helpers: homepage choice (job-board denylist, registrableDomain, isSafePublicHost, cleanCompanyName), pickSubPages(), normalizeDossier()/parseModelDossier(), limits
+│   ├── researchSchema.ts                  → zod body schema for POST /api/agent/research
 │   ├── adzuna.ts                          → Adzuna client: searchJobs(), detectCountry(), formatSalary(), toJobType()
 │   ├── jobScoring.ts                      → normalizeJobScore(): untrusted GPT-4o JSON → safe JobScore
 │   ├── findJobs.ts / findJobsSchema.ts / findJobsMessage.ts → Find Jobs path + limits, zod body schema, banner text
@@ -383,11 +384,16 @@ export const createInsforgeServer = async () =>
 
 ## Browserbase Session Pattern
 
+Stagehand v4 creates and owns the session; there is no separate session-creation helper.
+
 ```typescript
-// Company research session — single session, sequential page visits
-const session = await bb.sessions.create({
-  projectId: process.env.BROWSERBASE_PROJECT_ID!,
-  timeout: 120, // 2 minute session — visits 3-4 pages max
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await browserbase.launch({
+  apiKey: process.env.BROWSERBASE_API_KEY!,
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
+  api_timeout: 120, // seconds, minimum 60
+  browserSettings: { allowedDomains: ["example.com"] }, // main-frame navigations only, subdomains included
 });
 ```
 
@@ -419,41 +425,28 @@ const data = await response.json();
 ## Company Research Pattern
 
 ```typescript
-// Single session — visits company homepage and sub pages sequentially
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  apiKey: process.env.BROWSERBASE_API_KEY!,
-  projectId: process.env.BROWSERBASE_PROJECT_ID!,
-  browserbaseSessionID: session.id,
-  modelName: "gpt-4o",
-  modelClientOptions: { apiKey: process.env.OPENAI_API_KEY! },
+// agent/research.ts — one session, pages visited one after another
+const browser = await browserbase.launch({ apiKey, projectId, api_timeout: 120, browserSettings });
+const stagehand = await Stagehand.create({
+  browser,
+  model: { modelName: "openai/gpt-4o", apiKey: process.env.OPENAI_API_KEY! },
+  logging: { level: "off" },
 });
+const [page] = await browser.context.pages();
 
-await stagehand.init();
-const page = stagehand.page;
-
-// Clean company name and construct homepage URL
-const cleanName = companyName
-  .replace(/\s*(Inc\.?|LLC|Ltd\.?|Corp\.?|Co\.?).*$/i, "")
-  .trim()
-  .toLowerCase()
-  .replace(/\s+/g, "");
-
-const homepageUrl = `https://www.${cleanName}.com`;
-
-// Navigate and extract — graceful fallback if page not found
 try {
-  await page.goto(homepageUrl);
-  await page.waitForLoadState("networkidle");
-  const content = await stagehand.extract({ instruction: "..." });
+  await page.goto(homepageUrl, { waitUntil: "domcontentloaded", timeout: 15_000 });
+  // extract(instruction, zodSchema, options) returns { data }; link fields must be z.string().url()
+  const { data } = await stagehand.extract(instruction, schema, { page, timeout: 30_000 });
 } catch (error) {
-  // Log and continue — GPT-4o will synthesize from what was found
-  await logAgentError(jobId, error);
+  // logged to agent_logs; GPT-4o still synthesizes from the job and profile
+} finally {
+  await stagehand.close(); // Stagehand first, then the session
+  await browser.close();
 }
-
-// Always close session when done
-await stagehand.close();
 ```
+
+The employer's homepage comes from following the Adzuna `source_url` on the server (`lib/companyResearch.ts` `homepageFromUrl`), with `https://www.{companyname}.com` as the fallback when that lands on a job board or fails.
 
 ---
 
