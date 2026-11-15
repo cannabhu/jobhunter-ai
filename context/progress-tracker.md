@@ -7,8 +7,8 @@ Update this file after every completed feature. Any AI agent reading this should
 ## Current Status
 
 **Phase:** 1 — Foundation
-**Last completed:** 03 PostHog Initialization (client init + identify/reset + event tracking; not yet verified against live PostHog data). Before that: 02 Auth (code complete; end-to-end OAuth login still to be confirmed by hand — see Notes)
-**Next:** 04 Database Schema
+**Last completed:** 04 Database Schema (applied to InsForge and verified; cross-user RLS not exercised end to end — see Notes). Before that: 03 PostHog Initialization (not yet verified against live PostHog data) and 02 Auth (end-to-end OAuth login still to be confirmed by hand)
+**Next:** 05 Profile Page — Full UI
 
 ---
 
@@ -19,7 +19,7 @@ Update this file after every completed feature. Any AI agent reading this should
 - [x] 01 Homepage
 - [x] 02 Auth
 - [x] 03 PostHog Initialization
-- [ ] 04 Database Schema
+- [x] 04 Database Schema
 
 ### Phase 2 — Profile Page
 
@@ -73,3 +73,7 @@ _Add notes here as the build progresses — workarounds, patterns, anything that
 - **Open for feature 14+:** the proxy only checks that a valid-looking, unexpired token cookie exists (a forged cookie passes it). Protected pages must verify with `getUser()`, and the invalid-session case needs handling so `redirect("/login")` plus the proxy's `/login` → `/dashboard` rule can't loop.
 - Under `cacheComponents`, any `cookies()`/`searchParams` read must sit behind `<Suspense>` (see AuthCtaButtons, NavbarActions, login ErrorNotice).
 - PostHog event tracking added for existing surfaces: `cta_clicked` (via `components/analytics/TrackedLink.tsx`; locations hero / bottom_cta / navbar), `user_signed_in` (in `instrumentation-client.ts`, gated by the one-shot `jp_just_signed_in` cookie set in `/api/auth/callback`), `sign_in_failed` (`SignInFailedTracker` on /login; strips `?error` so reloads don't recount), plus existing `oauth_sign_in_started` and `user_signed_out`. Events listed in code-standards.md.
+- **04 Database Schema:** applied `db/migrations/001_initial_schema.sql` (profiles, agent_runs, jobs, agent_logs with RLS, indexes, check constraints; existing two users backfilled) and created the private `resumes` bucket. Verified via `get-table-schema`/`list-buckets`: columns, policies, `rlsEnabled`, unique `(user_id, external_id)`, check constraints and `on delete set null` behave as specified (tested in a rolled-back block). **Not verified:** actual cross-user isolation — the SQL tool blocks role switching, so RLS is confirmed by policy inspection only. Confirm with a real second session when feature 06 or 10 first writes data.
+- InsForge refuses triggers on `auth.users` ("must be owner of relation users"), so there is no signup trigger. `getProfile()` in `lib/insforge/profile.ts` creates the `profiles` row on first use. It is not wired into any page yet — **features 05/06/14 must call it** instead of querying `profiles` directly. The SDK strips tokens from `exchangeOAuthCode` results, so the OAuth callback cannot create the row itself.
+- The unused, empty `app_events` table (leftover from an earlier event-logging approach) was dropped after feature 04. The older note about `lib/events.ts` is stale.
+- Feature 05/06 still owes a small authenticated route handler that streams the private resume PDF for the preview.

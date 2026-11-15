@@ -67,15 +67,17 @@ All InsForge tables and storage bucket created before any data is written.
 
 **Logic:**
 
-- Create `profiles` table with all columns from architecture.md
+- Schema lives in `db/migrations/001_initial_schema.sql`, applied via InsForge `run-raw-sql`
+- Create `profiles` table with all columns from architecture.md, including `completion_percentage` and `missing_fields`
 - Create `agent_runs` table
 - Create `jobs` table with all columns including:
-  - tailored fields
-  - company_research jsonb column
+  - `external_id` (unique per user — repeat searches must not duplicate jobs)
+  - company_research jsonb column and `researched_at`
   - source values: 'search' | 'url'
 - Create `agent_logs` table
-- Create `resumes` storage bucket with authenticated access only
+- Create private `resumes` storage bucket; objects keyed `{user_id}/resume.pdf`, read only on the server
 - Row level security policies on all four tables — always filter by user_id
+- Profile rows: InsForge does not allow triggers on `auth.users`, so `getProfile()` (`lib/insforge/profile.ts`) creates the row on first use; existing users are backfilled in the migration
 
 ---
 
