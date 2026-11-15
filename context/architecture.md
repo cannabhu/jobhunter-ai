@@ -34,16 +34,17 @@
 │   └── progress-tracker.md
 ├── app/
 │   ├── layout.tsx                          → Root layout
-│   ├── not-found.tsx                       → 404 page (auth-card shell) — also catches unbuilt routes like /dashboard
+│   ├── not-found.tsx                       → 404 page (auth-card shell) — unknown routes, and job ids that don't exist
 │   ├── page.tsx                            → Homepage
 │   ├── login/
 │   │   └── page.tsx                       → Login page (Google + GitHub buttons)
 │   ├── sign-out/
 │   │   └── page.tsx                       → Sign-out confirmation page
-│   ├── dashboard/
-│   │   └── page.tsx                       → Main dashboard
 │   ├── (app)/                              → Route group for signed-in pages — shares AppNavbar
 │   │   ├── layout.tsx                     → AppNavbar + main
+│   │   ├── dashboard/
+│   │   │   ├── page.tsx                   → Dashboard (feature 14): incomplete-profile banner (real), stats, activity and charts (mock data until 15-17)
+│   │   │   └── mockDashboard.ts           → Mock stats, activity and chart data from the design; features 15, 16 and 17 replace each export, then delete the file
 │   │   ├── profile/
 │   │   │   └── page.tsx                   → Profile form + resume management (URL is /profile) — reads getProfile()
 │   │   └── find-jobs/
@@ -92,9 +93,14 @@
 │   │   ├── HowItWorks.tsx
 │   │   └── Features.tsx
 │   ├── dashboard/
-│   │   ├── StatsBar.tsx
-│   │   ├── RecentActivity.tsx
-│   │   └── AnalyticsCharts.tsx
+│   │   ├── StatsBar.tsx                   → Row of four StatCards
+│   │   ├── StatCard.tsx                   → Label, big number, and a trend badge or a short note
+│   │   ├── RecentActivity.tsx             → Card with a dotted timeline of activity entries (+ empty state)
+│   │   ├── ChartCard.tsx                  → Card shell for a chart (title + a box with a definite size)
+│   │   ├── ResearchActivityChart.tsx      → Client (recharts): Company Research Activity bars
+│   │   ├── JobsOverTimeChart.tsx          → Client (recharts): Jobs Found Over Time area/line
+│   │   ├── MatchDistributionChart.tsx     → Client (recharts): Match Score Distribution bars
+│   │   └── chartStyles.ts                 → Axis, grid and tooltip styles as CSS-variable strings (recharts takes props, not classes)
 │   ├── profile/
 │   │   ├── CompletionIndicator.tsx        → "Profile needs attention" banner + ring
 │   │   ├── ProfileEditor.tsx              → Holds ResumeUpload + ProfileForm; merges extracted resume data into the form (remounts it)
@@ -150,7 +156,7 @@
 │   ├── profileMapping.ts                  → profiles row ↔ form values / update payload
 │   ├── resume.ts                          → Resume size limit, route paths, extraction limits shared by client and server
 │   ├── rateLimit.ts                       → In-memory per-user sliding-window limiter for paid API routes
-│   ├── routes.ts                          → SIGNED_IN_HOME — post-login destination + homepage CTA (one place to flip to /dashboard); FIND_JOBS_PAGE_PATH
+│   ├── routes.ts                          → SIGNED_IN_HOME — post-login destination + homepage CTA (now /dashboard); FIND_JOBS_PAGE_PATH
 │   ├── posthog-server.ts                  → PostHog server client (job_search_started, job_found); shut down in the same function
 │   └── utils.ts                           → MATCH_THRESHOLD (70)
 └── types/
@@ -357,7 +363,7 @@ The bucket is **private**. Browsers cannot open its storage URLs, so the file is
 - Public routes: /, /login
 - `proxy.ts` (Next 16's replacement for middleware.ts) refreshes the session and redirects signed-out users away from protected routes. It runs on pages **and on every `/api` route except `/api/auth/*`**: the access-token cookie expires with its token, so a route handler can only call `getUser()` successfully if the proxy refreshed the cookie first. Any new `app/api/` route needs no extra session handling, but must not be added under `/api/auth/`
 - Pages must still verify the user with `getUser()` — the proxy only checks that a valid-looking token cookie exists
-- On login → redirect to `SIGNED_IN_HOME` (`lib/routes.ts`) — /profile until the dashboard exists (feature 14), then /dashboard
+- On login → redirect to `SIGNED_IN_HOME` (`lib/routes.ts`) — /dashboard
 
 ---
 

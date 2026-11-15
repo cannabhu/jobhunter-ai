@@ -1,4 +1,5 @@
 import { CircleAlert } from "lucide-react";
+import Link from "next/link";
 
 const RING_SIZE = 130;
 const RING_STROKE = 14;
@@ -8,9 +9,11 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 type Props = {
   percentage: number;
   missingFields: string[];
+  /** Where "Complete your profile" goes; the link is left out when the banner already sits on the profile page. */
+  actionHref?: string;
 };
 
-export function CompletionIndicator({ percentage, missingFields }: Props) {
+export function CompletionIndicator({ percentage, missingFields, actionHref }: Props) {
   const clamped = Math.min(100, Math.max(0, percentage));
   const filled = (clamped / 100) * RING_CIRCUMFERENCE;
 
@@ -34,6 +37,11 @@ export function CompletionIndicator({ percentage, missingFields }: Props) {
             </li>
           ))}
         </ul>
+        {actionHref ? (
+          <Link href={actionHref} className="mt-5 inline-block text-sm font-medium text-accent hover:text-accent-dark">
+            Complete your profile
+          </Link>
+        ) : null}
       </div>
       <div
         role="img"
