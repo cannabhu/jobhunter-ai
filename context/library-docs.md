@@ -533,17 +533,13 @@ const result = JSON.parse(response.choices[0].message.content!);
 ### Client Setup (Browser)
 
 ```typescript
-// lib/posthog-client.ts
+// instrumentation-client.ts — Next.js runs this on every page load; no provider needed.
 import posthog from "posthog-js";
 
-export function initPostHog() {
-  if (typeof window !== "undefined") {
-    posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY!, {
-      api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST!,
-      capture_pageview: false, // manual pageview tracking
-    });
-  }
-}
+posthog.init(process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN!, {
+  api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST!,
+  capture_exceptions: true,
+});
 
 // Capture event client-side
 posthog.capture("job_found", {
@@ -560,7 +556,7 @@ posthog.capture("job_found", {
 import { PostHog } from "posthog-node";
 
 export const createPostHogServer = () =>
-  new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY!, {
+  new PostHog(process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN!, {
     host: process.env.NEXT_PUBLIC_POSTHOG_HOST!,
     flushAt: 1, // send immediately
     flushInterval: 0, // no batching — Next.js functions are short-lived

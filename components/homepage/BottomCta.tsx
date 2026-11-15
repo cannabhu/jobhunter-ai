@@ -11,7 +11,7 @@ export function BottomCta() {
           Set up your profile, upload your resume, and start finding matches in minutes.
         </p>
         <div className="mt-8">
-          <AuthCtaButtons />
+          <AuthCtaButtons location="bottom_cta" />
         </div>
       </section>
       <div className="h-10 bg-surface" aria-hidden />

@@ -1,7 +1,15 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import posthog from "posthog-js";
 
 export default function SignOutPage() {
+  const handleSignOut = () => {
+    posthog.capture("user_signed_out");
+    posthog.reset();
+  };
+
   return (
     <main className="bg-hero-gradient flex flex-1 items-center justify-center px-6 py-16">
       <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-8 text-center shadow-card">
@@ -14,7 +22,7 @@ export default function SignOutPage() {
         </p>
 
         <div className="mt-6 flex flex-col gap-3">
-          <form action="/api/auth/sign-out" method="post">
+          <form action="/api/auth/sign-out" method="post" onSubmit={handleSignOut}>
             <button
               type="submit"
               className="w-full rounded-md bg-overlay px-5 py-2.5 text-sm font-medium text-accent-foreground shadow-card hover:bg-overlay-dark"

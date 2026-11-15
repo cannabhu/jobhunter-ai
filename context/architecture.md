@@ -33,7 +33,7 @@
 │   ├── build-plan.md
 │   └── progress-tracker.md
 ├── app/
-│   ├── layout.tsx                          → Root layout, PostHog provider
+│   ├── layout.tsx                          → Root layout
 │   ├── page.tsx                            → Homepage
 │   ├── login/
 │   │   └── page.tsx                       → Login page (Google + GitHub buttons)
@@ -104,8 +104,7 @@
 │   ├── browserbase.ts                     → Browserbase session creation + management
 │   ├── stagehand.ts                       → Stagehand initialisation with Browserbase session
 │   ├── adzuna.ts                          → Adzuna API client
-│   ├── posthog-client.ts                  → PostHog browser client
-│   ├── posthog-server.ts                  → PostHog server client
+│   ├── posthog-server.ts                  → PostHog server client (planned — add with the first server-side event)
 │   └── utils.ts                           → Shared utility functions
 └── types/
     └── index.ts                           → Global TypeScript types

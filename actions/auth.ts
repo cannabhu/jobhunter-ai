@@ -2,7 +2,9 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { createAuthActions } from "@insforge/sdk/ssr";
+import { loggerProvider, posthogLogger, SeverityNumber } from "@/instrumentation";
 
 const VERIFIER_COOKIE = "insforge_code_verifier";
 
@@ -31,6 +33,12 @@ async function startOAuth(provider: "google" | "github"): Promise<void> {
         maxAge: 60 * 10,
       });
       providerUrl = data.url;
+      posthogLogger?.emit({
+        body: "oauth_sign_in_redirect_created",
+        severityNumber: SeverityNumber.INFO,
+        attributes: { provider },
+      });
+      after(() => loggerProvider?.forceFlush().catch(() => {}));
     }
   } catch (error) {
     console.error("[actions/auth]", error);

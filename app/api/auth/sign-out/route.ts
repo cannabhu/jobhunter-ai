@@ -1,5 +1,6 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 import { clearAuthCookies, createAuthActions } from "@insforge/sdk/ssr";
+import { loggerProvider, posthogLogger, SeverityNumber } from "@/instrumentation";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // 303 so the browser follows the redirect with GET after a form POST.
@@ -18,6 +19,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Whatever happened upstream, the user must end up signed out locally.
   clearAuthCookies(response.cookies);
-  // PostHog reset hooks in here in feature 03 (client-side, on the next page load).
+  posthogLogger?.emit({
+    body: "sign_out_completed",
+    severityNumber: SeverityNumber.INFO,
+    attributes: { outcome: "completed" },
+  });
+  after(() => loggerProvider?.forceFlush().catch(() => {}));
   return response;
 }
