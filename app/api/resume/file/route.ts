@@ -1,4 +1,5 @@
 import { connection, NextResponse, type NextRequest } from "next/server";
+import { downloadResume } from "@/lib/insforge/resumeStorage";
 import { createInsforgeServer, getUser } from "@/lib/insforge/server";
 
 const fail = (error: string, status: number) => NextResponse.json({ success: false, error }, { status });
@@ -13,10 +14,15 @@ export async function GET(req: NextRequest) {
     if (!user) return NextResponse.redirect(new URL("/login?error=session", req.url));
 
     const insforge = await createInsforgeServer();
-    const { data, error } = await insforge.storage.from("resumes").download(`${user.id}/resume.pdf`);
-    if (error || !data) return fail("No resume found.", 404);
+    const download = await downloadResume(insforge, user.id, "resume/file");
+    if (!download.ok) {
+      // Only a real "no such file" is a 404; anything else is a storage failure and the user can try again.
+      return download.status === 404
+        ? fail("No resume found.", 404)
+        : fail("We couldn't load your resume right now. Please try again in a moment.", 502);
+    }
 
-    return new Response(data, {
+    return new Response(download.file, {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": 'inline; filename="resume.pdf"',

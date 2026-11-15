@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { PDFParse } from "pdf-parse";
 import { extractProfileFromResumeText, ResumeExtractionUnavailableError } from "@/agent/resumeExtractor";
+import { downloadResume } from "@/lib/insforge/resumeStorage";
 import { createInsforgeServer, getUser } from "@/lib/insforge/server";
 import { checkRateLimit } from "@/lib/rateLimit";
 import {
@@ -47,10 +48,14 @@ export async function POST() {
 
     const insforge = await createInsforgeServer();
     // The key comes from the session user, never from the request.
-    const { data: file, error: downloadError } = await insforge.storage.from("resumes").download(`${user.id}/resume.pdf`);
-    if (downloadError || !file) return fail("Upload a resume first, then try again.", 404);
+    const download = await downloadResume(insforge, user.id, "resume/extract");
+    if (!download.ok) {
+      return download.status === 404
+        ? fail("Upload a resume first, then try again.", 404)
+        : fail("We couldn't load your resume right now. Please try again in a moment.", 502);
+    }
 
-    const text = await readPdfText(Buffer.from(await file.arrayBuffer()));
+    const text = await readPdfText(Buffer.from(await download.file.arrayBuffer()));
     if (text.length < MIN_RESUME_TEXT_LENGTH) return fail(RESUME_UNREADABLE_ERROR, 422);
 
     const data = await extractProfileFromResumeText(text);

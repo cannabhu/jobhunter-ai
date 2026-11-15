@@ -98,3 +98,6 @@ export type ExtractedProfile = Pick<
 
 /** Response of `POST /api/resume/extract`. */
 export type ExtractResumeResponse = { success: true; data: ExtractedProfile } | { success: false; error: string };
+
+/** Response of `POST /api/resume/generate`. */
+export type GenerateResumeResponse = { success: true } | { success: false; error: string };
