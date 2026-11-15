@@ -140,6 +140,25 @@ export function fallbackHomepage(company: string): string | null {
   return name.length < 2 ? null : `https://www.${name}.com`;
 }
 
+/**
+ * Reads the model's answer to "what is this company's website" (a JSON string with a `website` field) into a homepage.
+ * Null for anything unusable: not JSON, no website, not http(s), an unsafe host, or a job board / ATS.
+ */
+export function parseWebsiteAnswer(content: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
+  const website = (parsed as Record<string, unknown>).website;
+  if (typeof website !== "string") return null;
+  const text = website.trim();
+  if (text === "") return null;
+  return homepageFromUrl(/^https?:\/\//i.test(text) ? text : `https://${text}`);
+}
+
 type PageLink = { url: string; kind: string };
 
 // Pages that say the most about the employer come first; careers pages mostly repeat the job post.
@@ -160,6 +179,8 @@ export function pickSubPages(links: PageLink[], homepage: string): string[] {
   const seen = new Set<string>([homeKey]);
   const candidates: { href: string; kind: string }[] = [];
   for (const link of links) {
+    // Stagehand writes "" for a link it could not map to a real address.
+    if (link.url.trim() === "") continue;
     let url: URL;
     try {
       url = new URL(link.url, homepage);
