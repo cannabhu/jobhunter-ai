@@ -112,5 +112,31 @@ export type JobListItem = {
   foundLabel: string;
 };
 
+/** GPT-4o's verdict on one job, after `normalizeJobScore` has made it safe to store. */
+export type JobScore = {
+  /** Integer 0 to 100. */
+  matchScore: number;
+  matchReason: string;
+  matchedSkills: string[];
+  missingSkills: string[];
+};
+
+/** What one Find Jobs search reports back. Counts cover every Adzuna result, new or already saved. */
+export type FindJobsResult = {
+  message: string;
+  found: number;
+  newCount: number;
+  strongMatches: number;
+};
+
+/** Response of `POST /api/agent/find`. */
+export type FindJobsResponse = { success: true; data: FindJobsResult } | { success: false; error: string };
+
+/** A page of saved jobs for the Find Jobs table. */
+export type JobListPage = {
+  jobs: JobListItem[];
+  total: number;
+};
+
 /** A page button in the jobs pagination; `ellipsis` stands for the skipped pages. */
 export type PaginationItem = number | "ellipsis";
