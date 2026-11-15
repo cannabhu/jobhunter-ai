@@ -38,8 +38,7 @@ export function CompletionIndicator({ percentage, missingFields }: Props) {
       <div
         role="img"
         aria-label={`Profile ${clamped}% complete`}
-        className="relative shrink-0 self-start sm:self-auto"
-        style={{ width: RING_SIZE, height: RING_SIZE }}
+        className="relative size-[130px] shrink-0 self-start sm:self-auto"
       >
         <svg width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`} className="-rotate-90" aria-hidden="true">
           <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_RADIUS} fill="none" strokeWidth={RING_STROKE} className="stroke-error-light" />

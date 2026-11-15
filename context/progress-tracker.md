@@ -7,8 +7,8 @@ Update this file after every completed feature. Any AI agent reading this should
 ## Current Status
 
 **Phase:** 2 — Profile Page
-**Last completed:** 05 Profile Page — Full UI (mock data, no save logic). Before that: 04 Database Schema, 03 PostHog Initialization (not yet verified against live PostHog data) and 02 Auth (end-to-end OAuth login still to be confirmed by hand)
-**Next:** 06 Profile Save Logic
+**Last completed:** 06 Profile Save Logic (built and checked headlessly — the signed-in save, upload and RLS paths still need one real browser pass, see Notes). Before that: 05 Profile Page — Full UI, 04 Database Schema, 03 PostHog Initialization (not yet verified against live PostHog data) and 02 Auth (end-to-end OAuth login still to be confirmed by hand)
+**Next:** 07 AI Profile Extraction from Resume
 
 ---
 
@@ -24,7 +24,7 @@ Update this file after every completed feature. Any AI agent reading this should
 ### Phase 2 — Profile Page
 
 - [x] 05 Profile Page — Full UI
-- [ ] 06 Profile Save Logic
+- [x] 06 Profile Save Logic
 - [ ] 07 AI Profile Extraction from Resume
 - [ ] 08 Resume PDF Generation from Profile
 
@@ -86,3 +86,12 @@ _Add notes here as the build progresses — workarounds, patterns, anything that
 - **Post-login routing fix (review of 02 Auth):** `/dashboard` doesn't exist until feature 14, so the OAuth callback, the proxy's signed-in `/login` bounce, both homepage CTAs and the sign-out Cancel link all led to a 404 dead end with no navbar. They now share `SIGNED_IN_HOME` in `lib/routes.ts` (currently `/profile`, label "Go to Profile"). **When feature 14 ships, change that one constant back to `/dashboard`.**
 - Redirect-loop guard: with `/login` now bouncing to `/profile`, a session the proxy accepts (valid-looking cookie) but `getUser()` rejects would loop forever. Pages that fail `getUser()` now `redirect("/login?error=session")`; the proxy leaves `/login?error=...` alone and the login page shows "Your session has expired". Every new protected page (dashboard, find-jobs) must use the same redirect. Verified with a forged unexpired token cookie; a real OAuth round trip is still unconfirmed.
 - Added `app/not-found.tsx` (reuses the auth-card shell: Back to home + `SIGNED_IN_HOME` button) so unbuilt routes such as /dashboard and /find-jobs no longer strand users on a bare 404.
+- **06 Profile Save Logic:** the profile page now reads `getProfile()` (mock deleted) and `saveProfile` in `actions/profile.ts` writes every form field. Pure helpers in `lib/`: `profileSchema.ts` (zod validation of the FormData, plus `splitList`/`joinList`), `profileCompletion.ts` (the 11 required fields → `completion_percentage`, `missing_fields`, `is_complete`), `profileMapping.ts` (row ↔ form values; jsonb is read leniently so bad stored data can't crash the page). Required fields: full name, phone, location, work authorization, current title, experience level, years of experience, ≥1 skill, ≥1 work role (company + title), education (degree + institution), ≥1 job title seeking. Empty required fields never block a save — only malformed values do (bad URL, years outside 0–60, graduation year not 4 digits, end date before start, >3 roles). Fully empty work roles are dropped; `endDate` is cleared when "Currently working here" is ticked.
+- **Resume upload is separate from Save:** `POST /api/resume/upload` runs the moment a PDF is picked (checks type, ≤5MB and the `%PDF-` header server-side), stores it at `resumes/{user_id}/resume.pdf` and sets `profiles.resume_pdf_url`. `GET /api/resume/file` streams the user's own PDF for the "View" link. The key always comes from the session, never the request. Feature 07's Extract button can rely on the file existing before the profile is saved.
+- **InsForge `storage.upload()` has no `upsert` option** — it PUTs to the object path, which replaces an existing file. `library-docs.md` and the old build-plan text said `upsert: true`; both corrected. Replacing a resume (second upload) has not been exercised against the live bucket yet.
+- **`profile_completed`** is captured client-side (posthog-js) when the action returns `justCompleted` — i.e. each time a save moves the profile from incomplete to complete. There is no persisted "first time ever" flag, so a user who completes, edits to incomplete, and completes again fires it twice; count it as first-occurrence-per-user in PostHog. `lib/posthog-server.ts` is still deferred to feature 10.
+- **The form submits via `onSubmit` + `useTransition`, not `<form action>`,** because React 19 resets uncontrolled fields after a form action — that would wipe the user's input after a validation error. Validation messages are shown as a list above Save Profile (not per field). Zod runs object-level checks (end-before-start) only once the individual fields are valid, so that message can appear on the second save attempt.
+- GET route handlers under `cacheComponents` are prerendered; `app/api/resume/file/route.ts` calls `await connection()` **outside** its try/catch so the build pass doesn't log a spurious error. Do the same in any new GET handler that reads the session.
+- The completion banner is hidden when `is_complete` (no complete-state design exists). Cover Letter Tone is still not in the form, and `saveProfile` never writes that column.
+- **Still unverified (needs a real browser sign-in):** a signed-in save round trip, uploading and replacing a PDF, the View link, and cross-user RLS isolation with a second real session. Verified headlessly: tsc, lint and `next build` pass; zod/completion/mapping logic passes a scripted test (empty, partial, complete, malformed, >3 roles, garbage jsonb, save→load round trip); the exact update payload passes the table's check constraints (tested in a rolled-back DB block); signed-out `GET /api/resume/file` and `POST /api/resume/upload` return 401 and `/profile` redirects to `/login`.
+- **Sign out button:** `AppNavbar` now has a one-click `SignOutButton` (secondary-button style per ui-rules/ui-tokens). It posts straight to `/api/auth/sign-out` (clears cookies, redirects to `/`) after `user_signed_out` + `posthog.reset()`, with no confirmation. This supersedes the earlier note that sign-out lives only on the `/sign-out` page. `app/sign-out/page.tsx` still works at its URL but nothing links to it any more.

@@ -227,11 +227,11 @@ All PostHog events must use these exact event names. Never invent new event name
 | -------------------- | ------------------------------------------ | -------------------------- |
 | `job_search_started` | Find Jobs button clicked                   | userId, jobTitle, location |
 | `job_found`          | Each job discovered and saved              | userId, source, matchScore |
-| `profile_completed`  | User saves complete profile for first time | userId                     |
+| `profile_completed`  | A save moves the profile from incomplete to complete (captured client-side from the `saveProfile` result) | userId |
 | `company_researched` | Company research dossier generated         | userId, jobId, company     |
 | `cta_clicked`        | Homepage/navbar CTA link clicked           | location, destination, label |
 | `user_signed_in`     | Right after a successful OAuth callback (one-shot cookie) | (identified via userId) |
-| `user_signed_out`    | Sign-out confirmed on /sign-out            | —                          |
+| `user_signed_out`    | Sign out clicked (navbar button, or confirmed on /sign-out) | —                 |
 | `oauth_sign_in_started` | Provider button submitted on /login     | provider                   |
 | `sign_in_failed`     | /login rendered with ?error=oauth          | reason                     |
 

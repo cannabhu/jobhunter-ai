@@ -45,8 +45,7 @@
 │   ├── (app)/                              → Route group for signed-in pages — shares AppNavbar
 │   │   ├── layout.tsx                     → AppNavbar + main
 │   │   └── profile/
-│   │       ├── page.tsx                   → Profile form + resume management (URL is /profile)
-│   │       └── mockProfile.ts             → Placeholder data for feature 05 — deleted in feature 06
+│   │       └── page.tsx                   → Profile form + resume management (URL is /profile) — reads getProfile()
 │   ├── find-jobs/
 │   │   ├── page.tsx                       → Find Jobs page — search controls + jobs list
 │   │   └── [id]/
@@ -60,6 +59,8 @@
 │       │   ├── find/route.ts              → Trigger Adzuna job discovery
 │       │   └── research/route.ts          → Trigger company research agent
 │       ├── resume/
+│       │   ├── upload/route.ts            → Store the picked resume PDF (POST, on file pick)
+│       │   ├── file/route.ts              → Stream the user's own private resume PDF (GET)
 │       │   ├── generate/route.ts          → Generate base resume PDF from profile
 │       │   └── extract/route.ts           → Extract profile data from uploaded resume PDF
 ├── agent/
@@ -73,13 +74,15 @@
 │   └── migrations/
 │       └── 001_initial_schema.sql         → Tables, indexes, RLS, backfill (applied via InsForge)
 ├── actions/
-│   ├── profile.ts                         → Profile save + update
+│   ├── auth.ts                            → OAuth sign-in Server Actions (Google, GitHub)
+│   ├── profile.ts                         → saveProfile — validates the form, computes completion, writes profiles
 │   └── jobs.ts                            → Job status updates
 ├── components/
 │   ├── ui/                                → shadcn/ui components only
 │   ├── layout/
 │   │   ├── Navbar.tsx                     → Homepage navbar
 │   │   ├── AppNavbar.tsx                  → Signed-in navbar (icons, underline on active item)
+│   │   ├── SignOutButton.tsx              → One-click sign out in AppNavbar (POST /api/auth/sign-out)
 │   │   └── Footer.tsx
 │   ├── homepage/
 │   │   ├── Hero.tsx
@@ -92,7 +95,6 @@
 │   ├── profile/
 │   │   ├── CompletionIndicator.tsx        → "Profile needs attention" banner + ring
 │   │   ├── ResumeUpload.tsx               → Resume card: drop zone, Generate button
-│   │   ├── ResumePreview.tsx              → (planned, feature 06)
 │   │   ├── ProfileForm.tsx                → Form shell + Save Profile
 │   │   ├── PersonalInfoSection.tsx / ProfessionalInfoSection.tsx / WorkExperienceSection.tsx
 │   │   │   WorkExperienceCard.tsx / EducationSection.tsx / JobPreferencesSection.tsx
@@ -116,6 +118,10 @@
 │   ├── browserbase.ts                     → Browserbase session creation + management
 │   ├── stagehand.ts                       → Stagehand initialisation with Browserbase session
 │   ├── adzuna.ts                          → Adzuna API client
+│   ├── profileSchema.ts                   → zod validation of the profile FormData + splitList/joinList
+│   ├── profileCompletion.ts               → Required fields → completion_percentage, missing_fields, is_complete
+│   ├── profileMapping.ts                  → profiles row ↔ form values / update payload
+│   ├── resume.ts                          → Resume size limit + route paths shared by client and server
 │   ├── routes.ts                          → SIGNED_IN_HOME — post-login destination + homepage CTA (one place to flip to /dashboard)
 │   ├── posthog-server.ts                  → PostHog server client (planned — add with the first server-side event)
 │   └── utils.ts                           → Shared utility functions
@@ -310,7 +316,7 @@ Schema source of truth: `db/migrations/001_initial_schema.sql` (applied via InsF
 | ------- | ---------------------- | ------------------------- |
 | resumes | {user_id}/resume.pdf   | Current active resume PDF |
 
-The bucket is **private**. Browsers cannot open its storage URLs, so the file is only ever read on the server (features 07 and 08 run in API routes). The profile page preview is served by a small authenticated route handler that streams the PDF (built in feature 05/06). `profiles.resume_pdf_url` means "a resume exists" — the key is always `{user_id}/resume.pdf`.
+The bucket is **private**. Browsers cannot open its storage URLs, so the file is only ever read on the server (features 07 and 08 run in API routes). The profile page's "View" link goes through `GET /api/resume/file`, an authenticated route handler that streams the PDF (feature 06). `profiles.resume_pdf_url` means "a resume exists" — the key is always `{user_id}/resume.pdf`, built from the session user. Uploading to an existing key replaces the object (the SDK's `upload()` has no `upsert` flag).
 
 ---
 

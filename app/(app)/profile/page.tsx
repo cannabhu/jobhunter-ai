@@ -4,25 +4,35 @@ import { Suspense } from "react";
 import { CompletionIndicator } from "@/components/profile/CompletionIndicator";
 import { ProfileForm } from "@/components/profile/ProfileForm";
 import { ResumeUpload } from "@/components/profile/ResumeUpload";
+import { getProfile } from "@/lib/insforge/profile";
 import { getUser } from "@/lib/insforge/server";
-import {
-  MOCK_COMPLETION_PERCENTAGE,
-  MOCK_MISSING_FIELDS,
-  MOCK_PROFILE_VALUES,
-} from "./mockProfile";
+import { rowToFormValues } from "@/lib/profileMapping";
 
 export const metadata: Metadata = {
   title: "Profile — JobPilot",
 };
 
 async function ProfileContent() {
-  if (!(await getUser())) redirect("/login?error=session");
+  const user = await getUser();
+  if (!user) redirect("/login?error=session");
+
+  const profile = await getProfile();
+  if (!profile) {
+    return (
+      <section role="alert" className="rounded-xl border border-error-light bg-error-lightest p-8 shadow-card">
+        <h2 className="text-xl font-semibold text-text-primary">We couldn&apos;t load your profile</h2>
+        <p className="mt-2 text-sm text-text-dark">Please refresh the page. If this keeps happening, try again in a few minutes.</p>
+      </section>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-8">
-      <CompletionIndicator percentage={MOCK_COMPLETION_PERCENTAGE} missingFields={MOCK_MISSING_FIELDS} />
-      <ResumeUpload />
-      <ProfileForm values={MOCK_PROFILE_VALUES} missingFields={MOCK_MISSING_FIELDS} />
+      {profile.is_complete ? null : (
+        <CompletionIndicator percentage={profile.completion_percentage} missingFields={profile.missing_fields} />
+      )}
+      <ResumeUpload hasResume={Boolean(profile.resume_pdf_url)} />
+      <ProfileForm values={rowToFormValues(profile)} missingFields={profile.missing_fields} userId={user.id} />
     </div>
   );
 }

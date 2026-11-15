@@ -110,20 +110,16 @@ const { error } = await insforge
 ### Storage
 
 ```typescript
-// Upload file
+// Upload file (server context). Takes a File or Blob — there is no upsert option:
+// uploading to an existing key replaces that object.
 const { data, error } = await insforge.storage
   .from("resumes")
-  .upload(`${userId}/resume.pdf`, fileBuffer, {
-    contentType: "application/pdf",
-    upsert: true, // overwrites existing file
-  });
+  .upload(`${userId}/resume.pdf`, file); // data.url, data.key, data.size
 
-// Get public URL
-const { data } = insforge.storage
+// Read a file back (server context) — returns a Blob
+const { data: blob, error } = await insforge.storage
   .from("resumes")
-  .getPublicUrl(`${userId}/resume.pdf`);
-
-const url = data.publicUrl;
+  .download(`${userId}/resume.pdf`);
 ```
 
 **Storage paths:**
@@ -132,9 +128,11 @@ const url = data.publicUrl;
 
 **Rules:**
 
-- Always use `upsert: true` for base resume uploads — overwrites existing file
-- Always save the public URL back to the DB after upload
-- Never write files to disk — always upload buffer directly to storage
+- The `resumes` bucket is **private** — browsers cannot open its URLs. Read files on the server (`download()`) and stream them through an authenticated route (`app/api/resume/file/route.ts`); never use `getPublicUrl` for it
+- Build the key from the session user (`getUser()`), never from request input
+- Re-uploading to the same key replaces the file — no `upsert` flag exists
+- `profiles.resume_pdf_url` stores the URL `upload()` returns, but only as a "resume exists" marker
+- Never write files to disk — upload the File/Blob (or a buffer wrapped in a Blob) directly
 
 ---
 
@@ -617,10 +615,7 @@ const buffer = await renderToBuffer(<ResumePDF profile={profile} />)
 // Upload directly to InsForge Storage
 await insforge.storage
   .from('resumes')
-  .upload(`${userId}/resume.pdf`, buffer, {
-    contentType: 'application/pdf',
-    upsert: true
-  })
+  .upload(`${userId}/resume.pdf`, new Blob([buffer], { type: 'application/pdf' }))
 ```
 
 **Supported CSS properties:**
@@ -633,7 +628,7 @@ Only use these — others are silently ignored:
 - Always use `renderToBuffer` — not `renderToStream` or `PDFDownloadLink`
 - PDF generation only in `app/api/resume/` routes
 - Generated buffer uploaded directly to InsForge Storage — never written to disk
-- Always save public URL to DB after upload
+- Always save the returned upload URL to `profiles.resume_pdf_url` after upload (a marker only — the bucket is private)
 
 ---
 
