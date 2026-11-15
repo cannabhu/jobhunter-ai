@@ -1,26 +1,34 @@
 "use client";
 
-import { CloudUpload, ExternalLink, FileText, LoaderCircle } from "lucide-react";
+import { CloudUpload, ExternalLink, FileText, LoaderCircle, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type DragEvent } from "react";
-import { MAX_RESUME_SIZE_BYTES, RESUME_FILE_PATH, RESUME_UPLOAD_PATH } from "@/lib/resume";
+import { MAX_RESUME_SIZE_BYTES, RESUME_EXTRACT_PATH, RESUME_FILE_PATH, RESUME_UPLOAD_PATH } from "@/lib/resume";
+import type { ExtractedProfile, ExtractResumeResponse } from "@/types";
 
 const UPLOAD_FAILED = "We couldn't upload your resume. Please try again.";
+const EXTRACT_FAILED = "We couldn't read your resume. Please try again.";
 
 const readError = (body: unknown): string | null =>
   typeof body === "object" && body !== null && "error" in body && typeof body.error === "string" ? body.error : null;
 
 type Props = {
   hasResume: boolean;
+  /** Puts extracted data into the form and returns how many fields it filled. */
+  onExtracted: (extracted: ExtractedProfile) => number;
 };
 
-export function ResumeUpload({ hasResume }: Props) {
+export function ResumeUpload({ hasResume, onExtracted }: Props) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploadingName, setUploadingName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
+  const [filledCount, setFilledCount] = useState<number | null>(null);
   const uploading = uploadingName !== null;
+  const busy = uploading || extracting;
 
   const upload = async (file: File) => {
     setError(null);
@@ -44,8 +52,28 @@ export function ResumeUpload({ hasResume }: Props) {
     }
   };
 
+  const extract = async () => {
+    setExtractError(null);
+    setFilledCount(null);
+    setExtracting(true);
+    try {
+      const response = await fetch(RESUME_EXTRACT_PATH, { method: "POST" });
+      const result: ExtractResumeResponse | null = await response.json().catch(() => null);
+      if (!result || !result.success) {
+        setExtractError(result && !result.success ? result.error : EXTRACT_FAILED);
+        return;
+      }
+      setFilledCount(onExtracted(result.data));
+    } catch (extractionError) {
+      console.error("[ResumeUpload]", extractionError);
+      setExtractError(EXTRACT_FAILED);
+    } finally {
+      setExtracting(false);
+    }
+  };
+
   const acceptFile = (candidate: File | undefined) => {
-    if (!candidate || uploading) return;
+    if (!candidate || busy) return;
     if (candidate.type !== "application/pdf") {
       setError("Only PDF files are supported.");
       return;
@@ -86,7 +114,7 @@ export function ResumeUpload({ hasResume }: Props) {
 
       <div
         onClick={() => {
-          if (!uploading) inputRef.current?.click();
+          if (!busy) inputRef.current?.click();
         }}
         onDragOver={(event) => {
           event.preventDefault();
@@ -96,7 +124,7 @@ export function ResumeUpload({ hasResume }: Props) {
         onDrop={handleDrop}
         aria-busy={uploading}
         className={`mt-8 flex flex-col items-center justify-center rounded-xl border border-dashed px-6 py-12 text-center ${
-          uploading ? "cursor-progress" : "cursor-pointer"
+          busy ? "cursor-progress" : "cursor-pointer"
         } ${dragging ? "border-accent bg-accent-muted" : "border-border-muted bg-surface-secondary"}`}
       >
         <span className="flex size-11 items-center justify-center rounded-full border border-border bg-surface shadow-card">
@@ -112,7 +140,7 @@ export function ResumeUpload({ hasResume }: Props) {
         <p className="mt-1 text-xs text-text-secondary">PDF formatting only. Maximum file size 5MB.</p>
         <button
           type="button"
-          disabled={uploading}
+          disabled={busy}
           className="mt-4 rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-text-primary shadow-card hover:bg-surface-secondary disabled:opacity-60"
         >
           Select Resume
@@ -141,6 +169,42 @@ export function ResumeUpload({ hasResume }: Props) {
             View
             <ExternalLink className="size-3.5" aria-hidden="true" />
           </a>
+        </div>
+      ) : null}
+
+      {hasResume ? (
+        <div className="mt-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-text-secondary">
+              Fill the form below from this resume. Fields the resume covers are replaced; nothing is saved until you click Save Profile.
+            </p>
+            <button
+              type="button"
+              onClick={() => void extract()}
+              disabled={busy}
+              aria-busy={extracting}
+              className="flex shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 py-2.5 text-sm font-medium text-text-primary shadow-card hover:bg-surface-secondary disabled:opacity-60"
+            >
+              {extracting ? (
+                <LoaderCircle className="size-4 animate-spin text-accent" aria-hidden="true" />
+              ) : (
+                <Sparkles className="size-4 text-accent" aria-hidden="true" />
+              )}
+              {extracting ? "Reading your resume…" : "Extract from Resume"}
+            </button>
+          </div>
+          {extractError ? (
+            <p role="alert" className="mt-3 text-sm text-error">
+              {extractError}
+            </p>
+          ) : null}
+          {filledCount !== null ? (
+            <p role="status" className="mt-3 rounded-md border border-success-light bg-success-lightest px-4 py-3 text-sm font-medium text-success-foreground">
+              {filledCount === 0
+                ? "We couldn't find any profile details in this resume."
+                : `Filled ${filledCount} ${filledCount === 1 ? "field" : "fields"} from your resume. Look for the purple highlights, review them, then click Save Profile.`}
+            </p>
+          ) : null}
         </div>
       ) : null}
 

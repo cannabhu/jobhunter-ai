@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { CompletionIndicator } from "@/components/profile/CompletionIndicator";
-import { ProfileForm } from "@/components/profile/ProfileForm";
-import { ResumeUpload } from "@/components/profile/ResumeUpload";
+import { ProfileEditor } from "@/components/profile/ProfileEditor";
 import { getProfile } from "@/lib/insforge/profile";
 import { getUser } from "@/lib/insforge/server";
 import { rowToFormValues } from "@/lib/profileMapping";
@@ -31,8 +30,12 @@ async function ProfileContent() {
       {profile.is_complete ? null : (
         <CompletionIndicator percentage={profile.completion_percentage} missingFields={profile.missing_fields} />
       )}
-      <ResumeUpload hasResume={Boolean(profile.resume_pdf_url)} />
-      <ProfileForm values={rowToFormValues(profile)} missingFields={profile.missing_fields} userId={user.id} />
+      <ProfileEditor
+        hasResume={Boolean(profile.resume_pdf_url)}
+        values={rowToFormValues(profile)}
+        missingFields={profile.missing_fields}
+        userId={user.id}
+      />
     </div>
   );
 }

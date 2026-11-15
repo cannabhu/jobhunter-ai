@@ -38,6 +38,7 @@ export function WorkExperienceSection({ initialRoles }: Props) {
   return (
     <ProfileSection
       title="Work Experience"
+      fieldPrefixes={["workExperience."]}
       action={
         <button
           type="button"

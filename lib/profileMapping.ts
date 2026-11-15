@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ProfileCompletion } from "@/lib/profileCompletion";
-import { joinList, splitList } from "@/lib/profileSchema";
+import { joinList, splitList } from "@/lib/profileFormData";
 import type { ProfileFormValues, ProfileInput, ProfileRow } from "@/types";
 
 // jsonb columns can hold anything, so read them leniently and fall back per field.

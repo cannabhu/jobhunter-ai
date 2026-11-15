@@ -78,3 +78,23 @@ export type SaveProfileResult = {
   /** True when this save moved the profile from incomplete to complete. */
   justCompleted?: boolean;
 };
+
+/** The form fields a resume can fill. Blank strings and empty lists mean "the resume didn't say". */
+export type ExtractedProfile = Pick<
+  ProfileFormValues,
+  | "fullName"
+  | "phone"
+  | "location"
+  | "linkedinUrl"
+  | "portfolioUrl"
+  | "currentTitle"
+  | "experienceLevel"
+  | "yearsExperience"
+  | "skills"
+  | "industries"
+  | "workExperience"
+  | "education"
+>;
+
+/** Response of `POST /api/resume/extract`. */
+export type ExtractResumeResponse = { success: true; data: ExtractedProfile } | { success: false; error: string };

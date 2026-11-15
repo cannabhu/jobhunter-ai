@@ -511,11 +511,14 @@ const result = JSON.parse(response.choices[0].message.content!);
 - Job matching + scoring: `300`
 - Company research synthesis: `800`
 - Resume generation: `1000`
-- Profile extraction from resume: `800`
+- Profile extraction from resume: `1500` (800 truncates the JSON for a resume with three roles)
 
 **Rules:**
 
 - Model string is always `'gpt-4o'` — never use other model names
+- Create the client once at module level with `timeout: 45_000` and `maxRetries: 1`. The SDK defaults (10 minutes, 2 retries) leave the UI spinning and delay quota/auth failures
+- Catch `APIError` around every call and log `status`, `code` and `requestID` only — logging the error object dumps the response headers, including cookies. Throw a typed error so the route can return 503 instead of a generic 500
+- Every route that makes a paid model call checks `checkRateLimit` (`lib/rateLimit.ts`) after the session check and before any work
 - Always use `response_format: { type: 'json_object' }` for structured data
 - Always parse `response.choices[0].message.content` as string — even with json_object it returns a string
 - Always validate parsed JSON before using — wrap in try/catch
@@ -661,3 +664,20 @@ export async function POST(req: NextRequest) {
 - `pdfData.text` is raw unformatted text — GPT-4o handles the structure extraction
 - Always handle parse errors — some PDFs are image-based and return empty text
 - If `pdfData.text` is empty or very short — return error to user: "Could not extract text from this PDF. Please try a different file."
+
+**Installed version is v2 (2.4.x), which has a different API from the snippet above:**
+
+```typescript
+import { PDFParse } from "pdf-parse";
+
+const parser = new PDFParse({ data: buffer }); // Buffer or Uint8Array
+try {
+  const { text } = await parser.getText(); // includes "-- 1 of N --" page markers
+} finally {
+  await parser.destroy().catch(() => undefined);
+}
+```
+
+- `next.config.ts` lists `serverExternalPackages: ["pdf-parse"]` so Next doesn't bundle its pdf.js worker.
+- A corrupt or non-PDF buffer makes `getText()` throw — catch it and treat it as "no text".
+- Used in `app/api/resume/extract/route.ts` (feature 07), which reads the user's stored PDF, not a file from the request.

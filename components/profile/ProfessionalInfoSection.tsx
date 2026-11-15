@@ -18,16 +18,16 @@ type Props = {
 
 export function ProfessionalInfoSection({ values }: Props) {
   return (
-    <ProfileSection title="Professional Info">
+    <ProfileSection title="Professional Info" fieldPrefixes={["currentTitle", "experienceLevel", "yearsExperience", "skills", "industries"]}>
       <div className="flex flex-col gap-6">
-        <FormField label="Current/Recent Job Title" htmlFor="currentTitle">
+        <FormField label="Current/Recent Job Title" htmlFor="currentTitle" name="currentTitle">
           <input id="currentTitle" name="currentTitle" type="text" placeholder="E.g. Frontend Engineer" defaultValue={values.currentTitle} className={inputClass} />
         </FormField>
         <div className="grid grid-cols-1 gap-x-5 gap-y-6 sm:grid-cols-2">
-          <FormField label="Experience Level" htmlFor="experienceLevel">
+          <FormField label="Experience Level" htmlFor="experienceLevel" name="experienceLevel">
             <SelectInput id="experienceLevel" name="experienceLevel" options={EXPERIENCE_LEVEL_OPTIONS} defaultValue={values.experienceLevel} placeholder="Select level" />
           </FormField>
-          <FormField label="Years of Experience" htmlFor="yearsExperience">
+          <FormField label="Years of Experience" htmlFor="yearsExperience" name="yearsExperience">
             <input id="yearsExperience" name="yearsExperience" type="number" min={0} max={60} inputMode="numeric" placeholder="E.g. 3" defaultValue={values.yearsExperience} className={inputClass} />
           </FormField>
         </div>
