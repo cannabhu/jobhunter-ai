@@ -93,6 +93,8 @@ Last updated: 2026-11-15
 
 **Pattern notes:** Signed-in pages only; the homepage keeps `Navbar.tsx`. Links stretch the full bar height (`items-stretch`) so the active underline touches the border. Icons are 16px lucide (`size-4`, `aria-hidden`); labels collapse to `sr-only` below `sm`. Active state is the underline plus colour, unlike the homepage navbar (colour only).
 
+**Sign out control** (`components/layout/SignOutButton.tsx`): styled as a nav link, not a button — identical metrics to the nav items (`flex h-full items-center gap-2 border-b-2 border-transparent px-2 text-sm font-medium sm:px-4`, `text-text-secondary hover:text-text-primary`, never the accent colour, so it can't read as the active page). A 1px × 20px divider (`h-5 w-px bg-border`) separates it from the page links; group gap `gap-1 sm:gap-2`. `LogOut size-4` icon; label `sr-only` below `sm`; browser default focus outline kept. It is a `<form method="post">` submit under the hood (state change, so never a GET link): one click posts to `/api/auth/sign-out` (redirects home) after `user_signed_out` + `posthog.reset()`. No confirmation step.
+
 ### Profile card (shell for every profile section)
 
 Files: `app/(app)/profile/page.tsx`, `components/profile/ResumeUpload.tsx`, `components/profile/ProfileForm.tsx`
@@ -129,7 +131,7 @@ Last updated: 2026-11-15
 | Shadow | `shadow-card` |
 | Accent usage | error red only: tag `rounded-md bg-error-light/50 px-2.5 py-1.5 text-xs font-semibold tracking-wide text-error uppercase`; ring track `stroke-error-light`, arc `stroke-error`, centre `text-3xl font-bold` |
 
-**Pattern notes:** Ring is a 130px SVG, 14px stroke, round caps, starts at 12 o'clock (`-rotate-90`). Missing-field slugs are lowercase in data and uppercased by CSS. Any future status banner (success, warning) should copy this shape with the matching token family; `error-light` / `error-lightest` are the only tint tokens that exist so far.
+**Pattern notes:** The profile page does not render this banner once `is_complete` is true (no complete-state design exists yet). Ring is a 130px SVG (`size-[130px]` wrapper), 14px stroke, round caps, starts at 12 o'clock (`-rotate-90`). Missing-field slugs are lowercase in data and uppercased by CSS. Any future status banner (success, warning) should copy this shape with the matching token family; `error-light` / `error-lightest` are the only tint tokens that exist so far.
 
 ### ResumeUpload
 
@@ -148,7 +150,9 @@ Last updated: 2026-11-15
 | Shadow | `shadow-card` on badge and buttons |
 | Accent usage | icon `text-accent`; primary button `bg-accent text-accent-foreground` |
 
-**Pattern notes:** Errors use `text-sm text-error` with `role="alert"`; selected-file chip is `rounded-md border border-border bg-surface-secondary px-3.5 py-2.5`. Icon badge: `size-11 border border-border bg-surface`.
+**Pattern notes:** Errors use `text-sm text-error` with `role="alert"`; "Resume on file" row is `rounded-md border border-border bg-surface-secondary px-3.5 py-2.5` with a `text-sm font-medium text-accent hover:text-accent-dark` View link (`ExternalLink size-3.5`, opens in a new tab) and a `text-xs text-text-secondary` replace hint. Icon badge: `size-11 border border-border bg-surface`.
+
+**States (feature 06):** the PDF uploads the moment it is picked or dropped. While uploading, the zone is `cursor-progress`, the badge icon swaps to `LoaderCircle animate-spin text-accent`, the title reads "Uploading {name}…" and "Select Resume" is `disabled:opacity-60`. Server rejections (wrong type, over 5MB, not a real PDF) show in the same `text-error` line.
 
 ### Buttons on app pages (profile)
 
@@ -165,7 +169,9 @@ Last updated: 2026-11-15
 | Hover state | `hover:bg-accent-dark` | `hover:bg-surface-secondary` |
 | Shadow | `shadow-card` (not on Save Profile) | `shadow-card` |
 
-**Pattern notes:** Two primary-button styles now exist on purpose: **dark `bg-overlay`** for homepage and auth screens, **purple `bg-accent`** for in-app actions (design for the profile page). Do not mix them within one screen. Text-link action: `text-sm font-medium text-accent hover:text-accent-dark disabled:text-text-muted` ("Add role").
+**Pattern notes:** Two primary-button styles now exist on purpose: **dark `bg-overlay`** for homepage and auth screens, **purple `bg-accent`** for in-app actions (design for the profile page). Do not mix them within one screen. Text-link action: `text-sm font-medium text-accent hover:text-accent-dark disabled:text-text-muted` ("Add role"). Pending: `disabled:opacity-60`, label "Saving…", `aria-busy`.
+
+**Save feedback (feature 06, above the Save Profile button, `mb-4`):** success is `role="status" rounded-md border border-success-light bg-success-lightest px-4 py-3 text-sm font-medium text-success-foreground` ("Profile saved."); failure is `role="alert" rounded-md border border-error-light bg-error-lightest px-4 py-3 text-sm text-text-dark` with a `font-semibold text-error` headline and a `list-disc pl-5` list of the field messages. The success message clears as soon as the user edits the form.
 
 ### Profile form controls
 

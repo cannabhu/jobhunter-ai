@@ -1,37 +1,60 @@
 "use client";
 
-import { CloudUpload, FileText, X } from "lucide-react";
+import { CloudUpload, ExternalLink, FileText, LoaderCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useRef, useState, type DragEvent } from "react";
+import { MAX_RESUME_SIZE_BYTES, RESUME_FILE_PATH, RESUME_UPLOAD_PATH } from "@/lib/resume";
 
-const MAX_SIZE_BYTES = 5 * 1024 * 1024;
+const UPLOAD_FAILED = "We couldn't upload your resume. Please try again.";
 
-const formatSize = (bytes: number): string =>
-  bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+const readError = (body: unknown): string | null =>
+  typeof body === "object" && body !== null && "error" in body && typeof body.error === "string" ? body.error : null;
 
-export function ResumeUpload() {
+type Props = {
+  hasResume: boolean;
+};
+
+export function ResumeUpload({ hasResume }: Props) {
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [uploadingName, setUploadingName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const uploading = uploadingName !== null;
+
+  const upload = async (file: File) => {
+    setError(null);
+    setUploadingName(file.name);
+    try {
+      const body = new FormData();
+      body.append("resume", file);
+      const response = await fetch(RESUME_UPLOAD_PATH, { method: "POST", body });
+      if (!response.ok) {
+        const result: unknown = await response.json().catch(() => null);
+        setError(readError(result) ?? UPLOAD_FAILED);
+        return;
+      }
+      router.refresh();
+    } catch (uploadError) {
+      console.error("[ResumeUpload]", uploadError);
+      setError(UPLOAD_FAILED);
+    } finally {
+      setUploadingName(null);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
 
   const acceptFile = (candidate: File | undefined) => {
-    if (!candidate) return;
+    if (!candidate || uploading) return;
     if (candidate.type !== "application/pdf") {
       setError("Only PDF files are supported.");
       return;
     }
-    if (candidate.size > MAX_SIZE_BYTES) {
+    if (candidate.size > MAX_RESUME_SIZE_BYTES) {
       setError("That file is larger than 5MB. Please choose a smaller PDF.");
       return;
     }
-    setError(null);
-    setFile(candidate);
-  };
-
-  const clearFile = () => {
-    setFile(null);
-    setError(null);
-    if (inputRef.current) inputRef.current.value = "";
+    void upload(candidate);
   };
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
@@ -62,25 +85,35 @@ export function ResumeUpload() {
       />
 
       <div
-        onClick={() => inputRef.current?.click()}
+        onClick={() => {
+          if (!uploading) inputRef.current?.click();
+        }}
         onDragOver={(event) => {
           event.preventDefault();
           setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
-        className={`mt-8 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-6 py-12 text-center ${
-          dragging ? "border-accent bg-accent-muted" : "border-border-muted bg-surface-secondary"
-        }`}
+        aria-busy={uploading}
+        className={`mt-8 flex flex-col items-center justify-center rounded-xl border border-dashed px-6 py-12 text-center ${
+          uploading ? "cursor-progress" : "cursor-pointer"
+        } ${dragging ? "border-accent bg-accent-muted" : "border-border-muted bg-surface-secondary"}`}
       >
         <span className="flex size-11 items-center justify-center rounded-full border border-border bg-surface shadow-card">
-          <CloudUpload className="size-5 text-accent" aria-hidden="true" />
+          {uploading ? (
+            <LoaderCircle className="size-5 animate-spin text-accent" aria-hidden="true" />
+          ) : (
+            <CloudUpload className="size-5 text-accent" aria-hidden="true" />
+          )}
         </span>
-        <p className="mt-4 text-sm font-semibold text-text-primary">Click to upload or drag and drop</p>
+        <p className="mt-4 text-sm font-semibold text-text-primary">
+          {uploading ? `Uploading ${uploadingName}…` : "Click to upload or drag and drop"}
+        </p>
         <p className="mt-1 text-xs text-text-secondary">PDF formatting only. Maximum file size 5MB.</p>
         <button
           type="button"
-          className="mt-4 rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-text-primary shadow-card hover:bg-surface-secondary"
+          disabled={uploading}
+          className="mt-4 rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-text-primary shadow-card hover:bg-surface-secondary disabled:opacity-60"
         >
           Select Resume
         </button>
@@ -92,19 +125,22 @@ export function ResumeUpload() {
         </p>
       ) : null}
 
-      {file ? (
+      {hasResume ? (
         <div className="mt-3 flex items-center gap-3 rounded-md border border-border bg-surface-secondary px-3.5 py-2.5">
           <FileText className="size-4 shrink-0 text-accent" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">{file.name}</span>
-          <span className="shrink-0 text-xs text-text-secondary">{formatSize(file.size)}</span>
-          <button
-            type="button"
-            onClick={clearFile}
-            aria-label={`Remove ${file.name}`}
-            className="shrink-0 text-text-secondary hover:text-text-primary"
+          <span className="min-w-0 flex-1 text-sm font-medium text-text-primary">
+            Resume on file
+            <span className="ml-2 text-xs font-normal text-text-secondary">Choose a new PDF to replace it.</span>
+          </span>
+          <a
+            href={RESUME_FILE_PATH}
+            target="_blank"
+            rel="noreferrer"
+            className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-accent hover:text-accent-dark"
           >
-            <X className="size-4" aria-hidden="true" />
-          </button>
+            View
+            <ExternalLink className="size-3.5" aria-hidden="true" />
+          </a>
         </div>
       ) : null}
 

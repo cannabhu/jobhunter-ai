@@ -36,6 +36,8 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
+// The session cookie expires with its access token and only this proxy can refresh it, so it must run
+// on every API route that calls getUser(). /api/auth/* is skipped: those routes manage the session themselves.
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)"],
+  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)"],
 };

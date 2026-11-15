@@ -66,3 +66,15 @@ export type ProfileFormValues = {
   salaryExpectation: string;
   preferredLocations: string;
 };
+
+/** What a Save Profile submit carries. Email is excluded: it always comes from the auth session. */
+export type ProfileInput = Omit<ProfileFormValues, "email">;
+
+/** Result of the `saveProfile` Server Action. `fieldErrors` is keyed by the form input name. */
+export type SaveProfileResult = {
+  success: boolean;
+  error?: string;
+  fieldErrors?: Record<string, string>;
+  /** True when this save moved the profile from incomplete to complete. */
+  justCompleted?: boolean;
+};
