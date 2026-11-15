@@ -210,3 +210,27 @@ export type ResearchCompanyResponse = { success: true; data: CompanyDossier } | 
 
 /** A page button in the jobs pagination; `ellipsis` stands for the skipped pages. */
 export type PaginationItem = number | "ellipsis";
+
+/** One dashboard stat card: a label, the big number, and either a "vs last week" trend or a short note. */
+export type StatCardData = {
+  label: string;
+  value: string;
+  footer: { kind: "trend"; change: string; label: string } | { kind: "note"; text: string };
+};
+
+/** Dot colour of a recent-activity entry. */
+export type ActivityTone = "accent" | "info" | "success";
+
+export type ActivityEntry = {
+  id: string;
+  message: string;
+  /** Ready-made label such as "10 mins ago". */
+  timeLabel: string;
+  tone: ActivityTone;
+};
+
+/** One bar or point on a dashboard chart. */
+export type ChartPoint = {
+  label: string;
+  value: number;
+};

@@ -557,6 +557,33 @@ await posthog.shutdown(); // required — ensures event is sent
 
 ---
 
+## Recharts
+
+**Check first:** No Recharts skill or MCP server is installed. Installed: v3.x. Used only for the three dashboard charts (`components/dashboard/*Chart.tsx`).
+
+```tsx
+"use client";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+
+<ResponsiveContainer width="100%" height="100%">
+  <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+    <CartesianGrid vertical={false} stroke="var(--color-border)" strokeDasharray="4 4" />
+    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "var(--color-chart-axis)", fontSize: 12 }} />
+    <YAxis ticks={[0, 3, 6, 9, 12]} domain={[0, 12]} axisLine={false} tickLine={false} />
+    <Bar dataKey="value" fill="var(--color-info)" maxBarSize={40} />
+  </BarChart>
+</ResponsiveContainer>
+```
+
+**Rules:**
+
+- Every chart file is a Client Component (`"use client"`); the page stays a Server Component and passes plain data arrays (`ChartPoint[]`) in.
+- Recharts takes SVG props, not class names, so colours are CSS variables (`var(--color-info)`), never hex. Shared axis, grid and tooltip styles live in `components/dashboard/chartStyles.ts`. The gradient under the line uses `stopColor="var(--color-accent)"` with `stopOpacity`.
+- `ResponsiveContainer` needs a parent with a definite size. `ChartCard` provides one: a `relative min-h-[280px] flex-1` box holding an `absolute inset-0` child. Do not put a chart in a plain auto-height div.
+- Y-axis ticks are passed in by the page (`yTicks`) because the design fixes them (0-12 by 3, 0-100 by 25). Feature 17 must derive them from the real data.
+
+---
+
 ## @react-pdf/renderer
 
 **Check first:** Check AGENTS.md for an installed react-pdf skill. PDF generation APIs can differ from general training knowledge.

@@ -324,6 +324,7 @@ Approved dependencies for this project:
 - `pdf-parse` — Extract text from uploaded PDF
 - `zod` — Schema validation (pinned to exactly 4.6.6 to match `@browserbasehq/stagehand`'s own copy; two versions break `extract()` types)
 - `lucide-react` — Icons
+- `recharts` — Dashboard charts (feature 14 onward)
 - `tailwindcss` — Styling
 - `shadcn/ui` components — UI primitives
 

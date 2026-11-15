@@ -308,3 +308,24 @@ Built from `context/designs/find-jobs.png` (sampled colours, 1440px frame). Page
 | Empty, filtered | `px-6 py-16 text-center text-sm text-text-muted`: "No jobs match your filters." and a "Clear filters" link `mt-2 inline-block font-medium text-accent hover:text-accent-dark`. The "No jobs yet…" text is kept for a user with no saved jobs |
 
 **Pattern notes:** the pagination footer, "Showing x to y of z" text and the Adzuna credit are unchanged; the credit still shows whenever the current page has jobs. Default sort is Match Score (the design's default).
+
+### Dashboard page (feature 14)
+
+Files: `app/(app)/dashboard/page.tsx`, `components/dashboard/*`
+Last updated: 2026-11-16
+
+Built from `context/designs/dashboard.png` (2000px render of a 1440px frame, so design px = measured / 1.389). Page wrapper `mx-auto w-full max-w-[1440px] px-4 py-8 sm:px-6 lg:px-14`, sections stacked `gap-6`, every section a card `rounded-xl border border-border bg-surface shadow-card`. The design has no visible page title, so an `sr-only` h1 carries it. Layout: four stat cards (`grid gap-6 sm:grid-cols-2 lg:grid-cols-4`), then Recent Activity + Company Research Activity (`lg:grid-cols-2`), then Jobs Found Over Time (`lg:col-span-2`) + Match Score Distribution (`lg:grid-cols-3`).
+
+| Part | Class |
+| --- | --- |
+| Stat card | `p-6`; label `text-sm font-medium text-text-secondary`; number `mt-1 text-3xl font-semibold text-text-primary` (30px / 36px); footer `mt-2` |
+| Trend badge | `rounded-sm bg-success-lightest px-2 py-0.5 text-xs font-medium text-success-darker` (4px, not a pill), then `text-xs text-text-muted` "vs last week", `gap-3`. Cards without a trend show a `mt-2 py-0.5 text-xs text-text-muted` note instead ("Total researched") |
+| Recent Activity | heading `border-b border-border px-6 py-5 text-base font-semibold text-text-primary` (the card has no padding of its own); list `px-6 pt-6 pb-6`; entry `flex gap-4`, 64px pitch (`pb-6.5` after all but the last) |
+| Activity dot | 16px ring `size-4 rounded-full` + 8px dot `size-2 rounded-full`; ring/dot by tone: accent `bg-accent-light`/`bg-accent`, info `bg-info-light`/`bg-info`, success `bg-success-light`/`bg-success-alt`; 1px connector `mt-1 w-px flex-1 bg-border` under every dot but the last |
+| Activity text | message `text-sm leading-4 font-medium text-text-primary`; time `mt-1.5 text-xs text-text-muted`; empty state `px-6 py-16 text-center text-sm text-text-muted` |
+| Chart card (`ChartCard`) | `flex flex-col p-6`; heading `text-base font-semibold text-text-primary`; chart box `relative mt-6 min-h-[280px] flex-1` holding an `absolute inset-0` child (recharts needs a definite size) |
+| Chart styling | bars: research `var(--color-info)`, max 40px wide; match distribution `var(--color-success)`, max 32px wide, square tops. Line: `var(--color-accent)` 3px, smooth (`monotone`), no dots, area fill accent 20% to 2%. Grid horizontal only, `4 4` dashed `var(--color-border)`; axis labels 12px `var(--color-chart-axis)`, no axis or tick lines. Tooltip: white card, `border-border`, `rounded-md`, `shadow-card` (not in the design) |
+
+**Pattern notes:** the Company Research Activity chart has a 40px top margin because its plot starts lower in the design than the other two charts (115px vs 82px below the card top). Y ticks are fixed by the design (0 to 12 by 3, 0 to 100 by 25) and passed in as `yTicks`; feature 17 must compute them. Chart colours are CSS variables in SVG props (recharts takes no class names); `--color-chart-axis` is the existing token for the design's `#9CA3AF`. The design's navbar shows no Sign out and a larger logo; the shipped `AppNavbar` is kept, as for the other pages.
+
+**Incomplete-profile banner:** the dashboard reuses `CompletionIndicator` (see its entry) at the top, only while `is_complete` is false. It takes an optional `actionHref`; when set, a `mt-5 inline-block text-sm font-medium text-accent hover:text-accent-dark` "Complete your profile" link follows the tags. The profile page does not pass it. Not in the design (which shows a complete profile).
