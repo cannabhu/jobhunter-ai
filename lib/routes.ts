@@ -4,3 +4,7 @@
  * When /dashboard ships, change both fields here and nothing else.
  */
 export const SIGNED_IN_HOME = { href: "/profile", label: "Go to Profile" } as const;
+
+export const FIND_JOBS_PAGE_PATH = "/find-jobs";
+
+export const jobDetailPath = (jobId: string): string => `${FIND_JOBS_PAGE_PATH}/${jobId}`;
