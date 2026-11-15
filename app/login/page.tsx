@@ -9,11 +9,13 @@ async function ErrorNotice({ searchParams }: { searchParams: PageProps<"/login">
   const { error } = await searchParams;
   if (!error) return null;
 
+  const sessionExpired = error === "session";
+
   return (
     <>
-      <SignInFailedTracker />
+      {sessionExpired ? null : <SignInFailedTracker />}
       <p role="alert" className="mt-6 rounded-md border border-error px-3 py-2 text-xs text-error">
-        Sign-in didn&apos;t complete. Please try again.
+        {sessionExpired ? "Your session has expired. Please sign in again." : "Sign-in didn\u2019t complete. Please try again."}
       </p>
     </>
   );

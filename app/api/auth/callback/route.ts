@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { after, NextResponse, type NextRequest } from "next/server";
 import { createAuthActions } from "@insforge/sdk/ssr";
 import { loggerProvider, posthogLogger, SeverityNumber } from "@/instrumentation";
+import { SIGNED_IN_HOME } from "@/lib/routes";
 
 const JUST_SIGNED_IN_COOKIE = "jp_just_signed_in";
 
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const verifier = (await cookies()).get("insforge_code_verifier")?.value;
     if (!code || !verifier) return failure;
 
-    const response = NextResponse.redirect(new URL("/dashboard", request.url));
+    const response = NextResponse.redirect(new URL(SIGNED_IN_HOME.href, request.url));
     const auth = createAuthActions({
       requestCookies: request.cookies,
       responseCookies: response.cookies,

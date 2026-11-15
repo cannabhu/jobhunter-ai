@@ -34,6 +34,7 @@
 │   └── progress-tracker.md
 ├── app/
 │   ├── layout.tsx                          → Root layout
+│   ├── not-found.tsx                       → 404 page (auth-card shell) — also catches unbuilt routes like /dashboard
 │   ├── page.tsx                            → Homepage
 │   ├── login/
 │   │   └── page.tsx                       → Login page (Google + GitHub buttons)
@@ -41,8 +42,11 @@
 │   │   └── page.tsx                       → Sign-out confirmation page
 │   ├── dashboard/
 │   │   └── page.tsx                       → Main dashboard
-│   ├── profile/
-│   │   └── page.tsx                       → Profile form + resume management
+│   ├── (app)/                              → Route group for signed-in pages — shares AppNavbar
+│   │   ├── layout.tsx                     → AppNavbar + main
+│   │   └── profile/
+│   │       ├── page.tsx                   → Profile form + resume management (URL is /profile)
+│   │       └── mockProfile.ts             → Placeholder data for feature 05 — deleted in feature 06
 │   ├── find-jobs/
 │   │   ├── page.tsx                       → Find Jobs page — search controls + jobs list
 │   │   └── [id]/
@@ -74,7 +78,8 @@
 ├── components/
 │   ├── ui/                                → shadcn/ui components only
 │   ├── layout/
-│   │   ├── Navbar.tsx
+│   │   ├── Navbar.tsx                     → Homepage navbar
+│   │   ├── AppNavbar.tsx                  → Signed-in navbar (icons, underline on active item)
 │   │   └── Footer.tsx
 │   ├── homepage/
 │   │   ├── Hero.tsx
@@ -85,10 +90,13 @@
 │   │   ├── RecentActivity.tsx
 │   │   └── AnalyticsCharts.tsx
 │   ├── profile/
-│   │   ├── ProfileForm.tsx
-│   │   ├── ResumeUpload.tsx
-│   │   ├── ResumePreview.tsx
-│   │   └── CompletionIndicator.tsx
+│   │   ├── CompletionIndicator.tsx        → "Profile needs attention" banner + ring
+│   │   ├── ResumeUpload.tsx               → Resume card: drop zone, Generate button
+│   │   ├── ResumePreview.tsx              → (planned, feature 06)
+│   │   ├── ProfileForm.tsx                → Form shell + Save Profile
+│   │   ├── PersonalInfoSection.tsx / ProfessionalInfoSection.tsx / WorkExperienceSection.tsx
+│   │   │   WorkExperienceCard.tsx / EducationSection.tsx / JobPreferencesSection.tsx
+│   │   └── ProfileSection.tsx, FormField.tsx, SelectInput.tsx, TagInput.tsx, fieldStyles.ts
 │   ├── find-jobs/
 │   │   ├── SearchControls.tsx
 │   │   ├── JobsTable.tsx
@@ -108,6 +116,7 @@
 │   ├── browserbase.ts                     → Browserbase session creation + management
 │   ├── stagehand.ts                       → Stagehand initialisation with Browserbase session
 │   ├── adzuna.ts                          → Adzuna API client
+│   ├── routes.ts                          → SIGNED_IN_HOME — post-login destination + homepage CTA (one place to flip to /dashboard)
 │   ├── posthog-server.ts                  → PostHog server client (planned — add with the first server-side event)
 │   └── utils.ts                           → Shared utility functions
 └── types/
@@ -314,7 +323,7 @@ The bucket is **private**. Browsers cannot open its storage URLs, so the file is
 - Public routes: /, /login
 - `proxy.ts` (Next 16's replacement for middleware.ts) refreshes the session and redirects signed-out users away from protected routes
 - Pages must still verify the user with `getUser()` — the proxy only checks that a valid-looking token cookie exists
-- On login → redirect to /dashboard
+- On login → redirect to `SIGNED_IN_HOME` (`lib/routes.ts`) — /profile until the dashboard exists (feature 14), then /dashboard
 
 ---
 

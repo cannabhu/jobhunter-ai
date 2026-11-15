@@ -6,9 +6,9 @@ Update this file after every completed feature. Any AI agent reading this should
 
 ## Current Status
 
-**Phase:** 1 — Foundation
-**Last completed:** 04 Database Schema (applied to InsForge and verified; cross-user RLS not exercised end to end — see Notes). Before that: 03 PostHog Initialization (not yet verified against live PostHog data) and 02 Auth (end-to-end OAuth login still to be confirmed by hand)
-**Next:** 05 Profile Page — Full UI
+**Phase:** 2 — Profile Page
+**Last completed:** 05 Profile Page — Full UI (mock data, no save logic). Before that: 04 Database Schema, 03 PostHog Initialization (not yet verified against live PostHog data) and 02 Auth (end-to-end OAuth login still to be confirmed by hand)
+**Next:** 06 Profile Save Logic
 
 ---
 
@@ -23,7 +23,7 @@ Update this file after every completed feature. Any AI agent reading this should
 
 ### Phase 2 — Profile Page
 
-- [ ] 05 Profile Page — Full UI
+- [x] 05 Profile Page — Full UI
 - [ ] 06 Profile Save Logic
 - [ ] 07 AI Profile Extraction from Resume
 - [ ] 08 Resume PDF Generation from Profile
@@ -77,3 +77,12 @@ _Add notes here as the build progresses — workarounds, patterns, anything that
 - InsForge refuses triggers on `auth.users` ("must be owner of relation users"), so there is no signup trigger. `getProfile()` in `lib/insforge/profile.ts` creates the `profiles` row on first use. It is not wired into any page yet — **features 05/06/14 must call it** instead of querying `profiles` directly. The SDK strips tokens from `exchangeOAuthCode` results, so the OAuth callback cannot create the row itself.
 - The unused, empty `app_events` table (leftover from an earlier event-logging approach) was dropped after feature 04. The older note about `lib/events.ts` is stale.
 - Feature 05/06 still owes a small authenticated route handler that streams the private resume PDF for the preview.
+- **05 Profile Page — Full UI:** built to `context/designs/profile.png` and compared against a headless-Chrome screenshot (layout, spacing and field states match). Signed-in pages now share `app/(app)/layout.tsx` + `components/layout/AppNavbar.tsx` (route group — URLs unchanged); features 09 and 14 should live inside `app/(app)/` too. The page checks `getUser()` behind `<Suspense>`, then renders **mock data** from `app/(app)/profile/mockProfile.ts` — it does not call `getProfile()` yet. Feature 06 must swap the mock for `getProfile()`, map `ProfileRow` → `ProfileFormValues` (types/index.ts), and delete the mock file.
+- 05 behaviour that is real: skills/industries tag add/remove (Enter or Add; duplicates ignored), add/remove work roles (max 3, remove shown only when more than one), "Currently working here" disables the end date, resume drop zone validates PDF type and 5MB and shows the chosen file. Not wired (by design): Save Profile (submit is `preventDefault`ed), Generate Resume from Profile, and uploading the chosen resume. Inputs carry `name` attributes (`workExperience.{i}.company`, `education.degree`, repeated hidden `skills` inputs) ready for the 06 Server Action.
+- Field state rule: inputs are gray when filled and white with a soft shadow when empty; fields flagged in `missing_fields` stay white (the education block, as in the design). `missing_fields` slugs are lowercase (`phone`, `location`, `education`) and shown uppercase in the banner. The banner only renders the "needs attention" state — a complete-profile state is still to design.
+- Deliberately left out: the "Cover Letter Tone" dropdown (listed in the build plan, absent from the design, and cover letters are out of scope). Also no sign-out link anywhere — the design has none; /sign-out is reachable only by URL until a place for it is decided.
+- Added `lucide-react` (already approved in code-standards.md) and `--color-error-light` / `--color-error-lightest` tokens.
+- Fixed a feature-03 bug found by `next build`: `SignInFailedTracker` tested the return value of `URLSearchParams.delete()` (always undefined), so `?error` was never stripped from the URL. It now checks `has()` first.
+- **Post-login routing fix (review of 02 Auth):** `/dashboard` doesn't exist until feature 14, so the OAuth callback, the proxy's signed-in `/login` bounce, both homepage CTAs and the sign-out Cancel link all led to a 404 dead end with no navbar. They now share `SIGNED_IN_HOME` in `lib/routes.ts` (currently `/profile`, label "Go to Profile"). **When feature 14 ships, change that one constant back to `/dashboard`.**
+- Redirect-loop guard: with `/login` now bouncing to `/profile`, a session the proxy accepts (valid-looking cookie) but `getUser()` rejects would loop forever. Pages that fail `getUser()` now `redirect("/login?error=session")`; the proxy leaves `/login?error=...` alone and the login page shows "Your session has expired". Every new protected page (dashboard, find-jobs) must use the same redirect. Verified with a forged unexpired token cookie; a real OAuth round trip is still unconfirmed.
+- Added `app/not-found.tsx` (reuses the auth-card shell: Back to home + `SIGNED_IN_HOME` button) so unbuilt routes such as /dashboard and /find-jobs no longer strand users on a bare 404.
