@@ -154,6 +154,25 @@ Last updated: 2026-11-15
 
 **States (feature 06):** the PDF uploads the moment it is picked or dropped. While uploading, the zone is `cursor-progress`, the badge icon swaps to `LoaderCircle animate-spin text-accent`, the title reads "Uploading {name}…" and "Select Resume" is `disabled:opacity-60`. Server rejections (wrong type, over 5MB, not a real PDF) show in the same `text-error` line.
 
+**Extract from Resume (feature 07):** shown only when a resume is on file, below the "Resume on file" row (`mt-3`, `flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`). A `text-sm text-text-secondary` line explains that covered fields are replaced and nothing saves until Save Profile. The button is the secondary style (`rounded-md border border-border bg-surface px-4 py-2.5 text-sm font-medium text-text-primary shadow-card hover:bg-surface-secondary disabled:opacity-60`) with a `Sparkles size-4 text-accent` icon. While extracting the icon becomes `LoaderCircle animate-spin text-accent`, the label reads "Reading your resume…", and the drop zone and Select Resume are disabled. Errors use `text-sm text-error` with `role="alert"`. Success is the same banner as Save Profile (`border-success-light bg-success-lightest text-sm font-medium text-success-foreground`, `role="status"`): "Filled N fields from your resume. Review them, then click Save Profile."
+
+### Resume-filled field highlight (feature 07)
+
+Files: `components/profile/FilledFieldsContext.tsx`, `FilledBadge.tsx`, `FormField.tsx`, `ProfileSection.tsx`, `TagInput.tsx`, `fieldStyles.ts`, `ProfileForm.tsx`
+Last updated: 2026-11-15
+
+After Extract from Resume, every value the resume supplied is marked so the user can review it. `ProfileEditor` holds a set of form input names and shares it through `FilledFieldsProvider`.
+
+| Part | Class / behaviour |
+| --- | --- |
+| Filled input / select / textarea | `border-accent bg-accent-muted` (accent border, faint purple fill), applied by `group-data-[filled=true]/field:` variants in `fieldStyles.ts`. `FormField` is the `group/field` and sets `data-filled="true"`, so inputs need no props |
+| Label tag (`FilledBadge`) | `Sparkles size-3` + "From resume", `text-xs font-medium text-accent`, `normal-case tracking-normal`, sits right of the label (`flex items-center gap-2`) |
+| Section header pill | same `FilledBadge` reading "Filled from resume", before the section action (`ProfileSection` `fieldPrefixes`) |
+| Skill / industry chip from the resume | `bg-accent-light text-accent` with a `Sparkles size-3` (`aria-label="From resume"`); other chips stay `bg-surface-tertiary text-text-dark`. Tag inputs pass `tint={false}` so the draft box is not tinted |
+| Banner (top of the form, `role="note"`) | `rounded-md border border-accent-light bg-accent-muted px-4 py-3 text-sm text-text-dark`, `Sparkles size-4 text-accent`, bold `text-accent` lead-in |
+
+**Behaviour:** a field's highlight clears when the user edits it (form `onChange` → `onFieldEdited(name)`); everything clears after a successful save. Name keys: scalar field names, `skills`/`industries` + `skills:{lowercase tag}`, `education.{field}`, `workExperience.{index}.{field}`. Fields the resume left blank are never marked. Color is never the only cue: the tag text carries the meaning.
+
 ### Buttons on app pages (profile)
 
 Files: `components/profile/ResumeUpload.tsx`, `ProfileForm.tsx`, `WorkExperienceSection.tsx`

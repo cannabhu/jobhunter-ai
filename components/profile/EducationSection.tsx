@@ -22,18 +22,18 @@ export function EducationSection({ education, flagged }: Props) {
   const textInputClass = flagged ? raisedInputClass : inputClass;
 
   return (
-    <ProfileSection title="Education">
+    <ProfileSection title="Education" fieldPrefixes={["education."]}>
       <div className="grid grid-cols-1 gap-x-5 gap-y-6 sm:grid-cols-2">
-        <FormField label="Highest Degree" htmlFor="degree">
+        <FormField label="Highest Degree" htmlFor="degree" name="education.degree">
           <SelectInput id="degree" name="education.degree" options={DEGREE_OPTIONS} defaultValue={education.degree} placeholder="Select degree" />
         </FormField>
-        <FormField label="Field of Study" htmlFor="fieldOfStudy">
+        <FormField label="Field of Study" htmlFor="fieldOfStudy" name="education.field">
           <input id="fieldOfStudy" name="education.field" type="text" placeholder="E.g. Computer Science" defaultValue={education.field} className={textInputClass} />
         </FormField>
-        <FormField label="Institution Name" htmlFor="institution">
+        <FormField label="Institution Name" htmlFor="institution" name="education.institution">
           <input id="institution" name="education.institution" type="text" placeholder="E.g. State University" defaultValue={education.institution} className={textInputClass} />
         </FormField>
-        <FormField label="Graduation Year" htmlFor="graduationYear">
+        <FormField label="Graduation Year" htmlFor="graduationYear" name="education.graduationYear">
           <input id="graduationYear" name="education.graduationYear" type="text" inputMode="numeric" maxLength={4} placeholder="YYYY" defaultValue={education.graduationYear} className={textInputClass} />
         </FormField>
       </div>

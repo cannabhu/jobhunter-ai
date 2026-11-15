@@ -67,6 +67,7 @@
 │   ├── adzuna.ts                          → Adzuna API job discovery + GPT-4o scoring
 │   ├── research.ts                        → Company research — Browserbase + Stagehand + GPT-4o
 │   ├── matcher.ts                         → GPT-4o job matching logic
+│   ├── resumeExtractor.ts                 → GPT-4o resume text → form-shaped profile data (feature 07)
 │   ├── extractor.ts                       → GPT-4o job description extraction + structuring
 │   └── types.ts                           → Agent-specific TypeScript types
 ├── proxy.ts                                → Session refresh + protected-route redirects
@@ -94,7 +95,9 @@
 │   │   └── AnalyticsCharts.tsx
 │   ├── profile/
 │   │   ├── CompletionIndicator.tsx        → "Profile needs attention" banner + ring
-│   │   ├── ResumeUpload.tsx               → Resume card: drop zone, Generate button
+│   │   ├── ProfileEditor.tsx              → Holds ResumeUpload + ProfileForm; merges extracted resume data into the form (remounts it)
+│   │   ├── FilledFieldsContext.tsx        → Which form fields came from the resume (highlight state); FilledBadge.tsx is the "From resume" tag
+│   │   ├── ResumeUpload.tsx               → Resume card: drop zone, Extract from Resume, Generate button
 │   │   ├── ProfileForm.tsx                → Form shell + Save Profile
 │   │   ├── PersonalInfoSection.tsx / ProfessionalInfoSection.tsx / WorkExperienceSection.tsx
 │   │   │   WorkExperienceCard.tsx / EducationSection.tsx / JobPreferencesSection.tsx
@@ -118,10 +121,15 @@
 │   ├── browserbase.ts                     → Browserbase session creation + management
 │   ├── stagehand.ts                       → Stagehand initialisation with Browserbase session
 │   ├── adzuna.ts                          → Adzuna API client
-│   ├── profileSchema.ts                   → zod validation of the profile FormData + splitList/joinList
+│   ├── profileSchema.ts                   → zod validation of the profile FormData
+│   ├── profileConstants.ts                → Limits and allowed enum values shared by Save validation and resume extraction
+│   ├── profileFormData.ts                 → Zod-free FormData readers (readFormValues), splitList/joinList — safe for client code
+│   ├── resumeExtraction.ts                → normalizeExtraction(): untrusted GPT-4o JSON → safe ExtractedProfile
+│   ├── profileMerge.ts                    → mergeExtractedValues(): lays resume data over the current form values
 │   ├── profileCompletion.ts               → Required fields → completion_percentage, missing_fields, is_complete
 │   ├── profileMapping.ts                  → profiles row ↔ form values / update payload
-│   ├── resume.ts                          → Resume size limit + route paths shared by client and server
+│   ├── resume.ts                          → Resume size limit, route paths, extraction limits shared by client and server
+│   ├── rateLimit.ts                       → In-memory per-user sliding-window limiter for paid API routes
 │   ├── routes.ts                          → SIGNED_IN_HOME — post-login destination + homepage CTA (one place to flip to /dashboard)
 │   ├── posthog-server.ts                  → PostHog server client (planned — add with the first server-side event)
 │   └── utils.ts                           → Shared utility functions

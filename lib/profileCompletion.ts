@@ -1,4 +1,4 @@
-import { splitList } from "@/lib/profileSchema";
+import { splitList } from "@/lib/profileFormData";
 import type { ProfileInput } from "@/types";
 
 type RequiredField = {

@@ -1,38 +1,26 @@
 import { z } from "zod";
+import {
+  DEGREE_VALUES,
+  EXPERIENCE_LEVEL_VALUES,
+  FIELD_LIMITS,
+  FIRST_GRADUATION_YEAR,
+  GRADUATION_YEARS_AHEAD,
+  MAX_ROLES,
+  MAX_TAGS,
+  MAX_TAG_LENGTH,
+  MAX_YEARS_EXPERIENCE,
+  MONTH_PATTERN,
+  REMOTE_PREFERENCE_VALUES,
+  WORK_AUTHORIZATION_VALUES,
+} from "@/lib/profileConstants";
+import { joinList, readList, readRoles, readText, splitList, uniqueIgnoringCase } from "@/lib/profileFormData";
 import type { ProfileInput } from "@/types";
-
-const MAX_ROLES = 3;
-const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
-const FIRST_GRADUATION_YEAR = 1950;
-const GRADUATION_YEARS_AHEAD = 10;
-const ROLE_FIELD_PATTERN = /^workExperience\.(\d+)\./;
-
-const uniqueIgnoringCase = (items: string[]): string[] => {
-  const seen = new Set<string>();
-  return items.filter((item) => {
-    const key = item.toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-};
-
-/** Comma-separated free text ("React, Node") to a clean, de-duplicated array. */
-export const splitList = (value: string): string[] =>
-  uniqueIgnoringCase(
-    value
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean),
-  );
-
-export const joinList = (items: string[]): string => items.join(", ");
 
 const text = (label: string, max: number) =>
   z.string().trim().max(max, `${label} must be ${max} characters or fewer.`);
 
 const url = (label: string) =>
-  text(label, 300).refine(
+  text(label, FIELD_LIMITS.url).refine(
     (value) => value === "" || (URL.canParse(value) && /^https?:/i.test(value)),
     `${label} must be a full link starting with http:// or https://.`,
   );
@@ -42,28 +30,28 @@ const month = (label: string) =>
 
 const tags = (label: string) =>
   z
-    .array(z.string().trim().max(60, `Each ${label.toLowerCase()} entry must be 60 characters or fewer.`))
-    .max(50, `Add at most 50 ${label.toLowerCase()}.`)
+    .array(z.string().trim().max(MAX_TAG_LENGTH, `Each ${label.toLowerCase()} entry must be ${MAX_TAG_LENGTH} characters or fewer.`))
+    .max(MAX_TAGS, `Add at most ${MAX_TAGS} ${label.toLowerCase()}.`)
     .transform((items) => uniqueIgnoringCase(items.filter(Boolean)));
 
 const commaList = (label: string) =>
   text(label, 300).transform((value) => joinList(splitList(value)));
 
 const roleSchema = z.object({
-  company: text("Company name", 120),
-  title: text("Job title", 120),
+  company: text("Company name", FIELD_LIMITS.company),
+  title: text("Job title", FIELD_LIMITS.roleTitle),
   startDate: month("Start date"),
   endDate: month("End date"),
   current: z.boolean(),
-  responsibilities: text("Key responsibilities", 2000),
+  responsibilities: text("Key responsibilities", FIELD_LIMITS.responsibilities),
 });
 
 const educationSchema = z.object({
-  degree: z.enum(["", "high_school", "associate", "bachelor", "master", "doctorate", "other"], {
+  degree: z.enum(["", ...DEGREE_VALUES], {
     error: "Choose a valid degree.",
   }),
-  field: text("Field of study", 120),
-  institution: text("Institution name", 120),
+  field: text("Field of study", FIELD_LIMITS.fieldOfStudy),
+  institution: text("Institution name", FIELD_LIMITS.institution),
   graduationYear: z
     .string()
     .trim()
@@ -82,29 +70,29 @@ const isBlankRole = (role: z.infer<typeof roleSchema>): boolean =>
 
 const profileInputSchema = z
   .object({
-    fullName: text("Full name", 120),
-    phone: text("Phone number", 40),
-    location: text("Location", 120),
+    fullName: text("Full name", FIELD_LIMITS.fullName),
+    phone: text("Phone number", FIELD_LIMITS.phone),
+    location: text("Location", FIELD_LIMITS.location),
     linkedinUrl: url("LinkedIn URL"),
     portfolioUrl: url("Portfolio / GitHub link"),
-    workAuthorization: z.enum(["", "citizen", "permanent_resident", "visa_required"], {
+    workAuthorization: z.enum(["", ...WORK_AUTHORIZATION_VALUES], {
       error: "Choose a valid work authorization.",
     }),
-    currentTitle: text("Current job title", 120),
-    experienceLevel: z.enum(["", "junior", "mid", "senior", "lead"], { error: "Choose a valid experience level." }),
+    currentTitle: text("Current job title", FIELD_LIMITS.currentTitle),
+    experienceLevel: z.enum(["", ...EXPERIENCE_LEVEL_VALUES], { error: "Choose a valid experience level." }),
     yearsExperience: z
       .string()
       .trim()
       .refine(
-        (value) => value === "" || (/^\d+$/.test(value) && Number(value) <= 60),
-        "Years of experience must be a whole number between 0 and 60.",
+        (value) => value === "" || (/^\d+$/.test(value) && Number(value) <= MAX_YEARS_EXPERIENCE),
+        `Years of experience must be a whole number between 0 and ${MAX_YEARS_EXPERIENCE}.`,
       ),
     skills: tags("Skills"),
     industries: tags("Industries"),
     workExperience: z.array(roleSchema).max(MAX_ROLES, `You can add up to ${MAX_ROLES} work roles.`),
     education: educationSchema,
     jobTitlesSeeking: commaList("Job titles seeking"),
-    remotePreference: z.enum(["", "remote", "onsite", "hybrid", "any"], { error: "Choose a valid remote preference." }),
+    remotePreference: z.enum(["", ...REMOTE_PREFERENCE_VALUES], { error: "Choose a valid remote preference." }),
     salaryExpectation: text("Salary expectation", 60),
     preferredLocations: commaList("Preferred locations"),
   })
@@ -125,35 +113,6 @@ const profileInputSchema = z
       .filter((role) => !isBlankRole(role))
       .map((role) => (role.current ? { ...role, endDate: "" } : role)),
   }));
-
-const readText = (formData: FormData, name: string): string => {
-  const value = formData.get(name);
-  return typeof value === "string" ? value : "";
-};
-
-const readList = (formData: FormData, name: string): string[] =>
-  formData.getAll(name).filter((value): value is string => typeof value === "string");
-
-const readRoles = (formData: FormData): unknown[] => {
-  const indexes = new Set<number>();
-  for (const key of formData.keys()) {
-    const match = ROLE_FIELD_PATTERN.exec(key);
-    if (match) indexes.add(Number(match[1]));
-  }
-  return [...indexes]
-    .sort((a, b) => a - b)
-    .map((index) => {
-      const field = (name: string) => `workExperience.${index}.${name}`;
-      return {
-        company: readText(formData, field("company")),
-        title: readText(formData, field("title")),
-        startDate: readText(formData, field("startDate")),
-        endDate: readText(formData, field("endDate")),
-        current: formData.get(field("current")) === "on",
-        responsibilities: readText(formData, field("responsibilities")),
-      };
-    });
-};
 
 export type ProfileParseResult =
   | { success: true; data: ProfileInput }

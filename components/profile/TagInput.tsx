@@ -1,7 +1,8 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { useId, useState } from "react";
+import { useFilledFields } from "@/components/profile/FilledFieldsContext";
 import { FormField } from "@/components/profile/FormField";
 import { inputClass } from "@/components/profile/fieldStyles";
 
@@ -16,6 +17,7 @@ export function TagInput({ label, name, placeholder, initialTags }: Props) {
   const inputId = useId();
   const [tags, setTags] = useState(initialTags);
   const [draft, setDraft] = useState("");
+  const filledFields = useFilledFields();
 
   const addTag = () => {
     const value = draft.trim();
@@ -29,7 +31,7 @@ export function TagInput({ label, name, placeholder, initialTags }: Props) {
 
   return (
     <div>
-      <FormField label={label} htmlFor={inputId}>
+      <FormField label={label} htmlFor={inputId} name={name} tint={false}>
         <div className="flex gap-3">
           <input
             id={inputId}
@@ -37,6 +39,8 @@ export function TagInput({ label, name, placeholder, initialTags }: Props) {
             value={draft}
             placeholder={placeholder}
             onChange={(event) => setDraft(event.target.value)}
+            // Leaving the box commits what was typed, so clicking Save or Extract never drops a half-added tag.
+            onBlur={addTag}
             onKeyDown={(event) => {
               if (event.key !== "Enter") return;
               event.preventDefault();
@@ -55,11 +59,16 @@ export function TagInput({ label, name, placeholder, initialTags }: Props) {
       </FormField>
       {tags.length > 0 ? (
         <ul className="mt-3 flex flex-wrap gap-3">
-          {tags.map((tag) => (
+          {tags.map((tag) => {
+            const fromResume = filledFields.has(`${name}:${tag.toLowerCase()}`);
+            return (
             <li
               key={tag}
-              className="flex items-center gap-1.5 rounded-md bg-surface-tertiary px-3 py-1.5 text-sm text-text-dark"
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm ${
+                fromResume ? "bg-accent-light text-accent" : "bg-surface-tertiary text-text-dark"
+              }`}
             >
+              {fromResume ? <Sparkles className="size-3" aria-label="From resume" /> : null}
               {tag}
               <button
                 type="button"
@@ -71,7 +80,8 @@ export function TagInput({ label, name, placeholder, initialTags }: Props) {
               </button>
               <input type="hidden" name={name} value={tag} />
             </li>
-          ))}
+            );
+          })}
         </ul>
       ) : null}
     </div>
