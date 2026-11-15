@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import posthog from "posthog-js";
+import { SIGNED_IN_HOME } from "@/lib/routes";
 
 export default function SignOutPage() {
   const handleSignOut = () => {
@@ -18,7 +19,7 @@ export default function SignOutPage() {
         </Link>
         <h1 className="mt-6 text-2xl font-semibold tracking-tight text-text-slate">Sign out of JobPilot?</h1>
         <p className="mt-2 text-sm text-text-secondary">
-          You&apos;ll need to sign in again to access your dashboard and saved jobs.
+          You&apos;ll need to sign in again to access your profile and saved jobs.
         </p>
 
         <div className="mt-6 flex flex-col gap-3">
@@ -31,7 +32,7 @@ export default function SignOutPage() {
             </button>
           </form>
           <Link
-            href="/dashboard"
+            href={SIGNED_IN_HOME.href}
             className="w-full rounded-md border border-border bg-surface px-5 py-2.5 text-sm font-medium text-text-primary shadow-card hover:bg-surface-secondary"
           >
             Cancel

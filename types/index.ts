@@ -27,3 +27,42 @@ export type ProfileRow = {
   created_at: string;
   updated_at: string;
 };
+
+export type WorkExperienceEntry = {
+  company: string;
+  title: string;
+  /** `YYYY-MM`, the value format of `<input type="month">`. */
+  startDate: string;
+  endDate: string;
+  current: boolean;
+  responsibilities: string;
+};
+
+export type EducationEntry = {
+  degree: string;
+  field: string;
+  institution: string;
+  graduationYear: string;
+};
+
+/** Profile page form state. Free-text list fields are comma-separated strings, matching the inputs. */
+export type ProfileFormValues = {
+  fullName: string;
+  email: string;
+  phone: string;
+  location: string;
+  linkedinUrl: string;
+  portfolioUrl: string;
+  workAuthorization: NonNullable<ProfileRow["work_authorization"]> | "";
+  currentTitle: string;
+  experienceLevel: NonNullable<ProfileRow["experience_level"]> | "";
+  yearsExperience: string;
+  skills: string[];
+  industries: string[];
+  workExperience: WorkExperienceEntry[];
+  education: EducationEntry;
+  jobTitlesSeeking: string;
+  remotePreference: NonNullable<ProfileRow["remote_preference"]> | "";
+  salaryExpectation: string;
+  preferredLocations: string;
+};

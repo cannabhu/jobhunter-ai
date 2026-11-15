@@ -24,12 +24,12 @@ Header `w-full border-b border-border bg-surface`; inner `grid h-16 max-w-[1440p
 ### NavbarActions / AuthCtaButtons — `components/layout/NavbarActions.tsx`, `components/homepage/AuthCtaButtons.tsx`
 Server components that read the session inside `<Suspense>`; the signed-out version is the fallback. Signed in: single "Go to Dashboard" dark button (same classes as the Navbar CTA). No sign-out control in the navbar. CtaButtons takes `isAuthed` (Get Started → Go to Dashboard).
 
-### Auth card screens — Login & Sign-out
+### Auth card screens — Login, Sign-out & 404
 
-Files: `app/login/page.tsx`, `app/sign-out/page.tsx`
-Last updated: 2026-11-12
+Files: `app/login/page.tsx`, `app/sign-out/page.tsx`, `app/not-found.tsx`
+Last updated: 2026-11-15
 
-Both screens share one shell: a centred card on the pastel gradient. Any future single-purpose screen (error, confirmation, onboarding step) should reuse it.
+All three screens (login, sign-out, 404) share one shell: a centred card on the pastel gradient. Any future single-purpose screen (error, confirmation, onboarding step) should reuse it.
 
 | Property | Class |
 | --- | --- |
@@ -51,7 +51,8 @@ Both screens share one shell: a centred card on the pastel gradient. Any future 
 **Pattern notes:**
 - Primary = dark `bg-overlay`; secondary = white with `border-border`. Same two button styles as `CtaButtons`, only `w-full` here.
 - Destructive-looking actions (Sign out) still use the dark primary button, not `bg-error`; the Cancel button is the escape hatch.
-- Error notice has no tinted background because no `error-light` token exists yet. Add one to globals.css before building more error UI, then update this entry.
+- Error notice (login) has no tinted background. `error-light` / `error-lightest` tokens now exist in globals.css (added for the profile banner) — use them if the notice ever gets a fill. Login also shows "Your session has expired…" for `?error=session`.
+- 404 (`app/not-found.tsx`) adds an eyebrow `mt-6 text-sm font-semibold text-accent` ("404") above the heading, then the same two stacked buttons: dark primary "Back to home", secondary `SIGNED_IN_HOME` link.
 - Icons must stay `currentColor` so they never need hardcoded brand colours.
 
 ### Footer — `components/layout/Footer.tsx`
@@ -71,3 +72,121 @@ Section `bg-hero-gradient border-b border-border px-6 py-24 text-center`; h1 `te
 
 ### Testimonial — `components/homepage/Testimonial.tsx`
 Eyebrow `text-xs uppercase text-accent`; quote `text-2xl font-medium text-text-dark`; avatar `size-9 rounded-md`.
+
+### AppNavbar
+
+File: `components/layout/AppNavbar.tsx` (rendered by `app/(app)/layout.tsx`)
+Last updated: 2026-11-15
+
+| Property | Class |
+| --- | --- |
+| Background | `bg-surface` |
+| Border | `border-b border-border` |
+| Border radius | none |
+| Text — active | `text-accent` + `border-b-2 border-accent` (underline sits on the bar's bottom edge) |
+| Text — inactive | `text-text-secondary` on `border-transparent` |
+| Type | `text-sm font-medium` |
+| Spacing | bar `h-16 px-4 sm:px-6`, max `max-w-[1440px]`; link `gap-2 px-2 sm:px-4`, links `gap-1 sm:gap-2` |
+| Hover state | `hover:text-text-primary` |
+| Shadow | none |
+| Accent usage | active item only |
+
+**Pattern notes:** Signed-in pages only; the homepage keeps `Navbar.tsx`. Links stretch the full bar height (`items-stretch`) so the active underline touches the border. Icons are 16px lucide (`size-4`, `aria-hidden`); labels collapse to `sr-only` below `sm`. Active state is the underline plus colour, unlike the homepage navbar (colour only).
+
+### Profile card (shell for every profile section)
+
+Files: `app/(app)/profile/page.tsx`, `components/profile/ResumeUpload.tsx`, `components/profile/ProfileForm.tsx`
+Last updated: 2026-11-15
+
+| Property | Class |
+| --- | --- |
+| Background | `bg-surface` |
+| Border | `border border-border` |
+| Border radius | `rounded-xl` (16px — `--radius-xl`) |
+| Text — primary | `text-xl font-semibold text-text-primary` (card title) |
+| Text — secondary | `mt-1 text-sm text-text-secondary` (subtitle) |
+| Spacing | card `p-8`; cards stacked `gap-8`; page `mx-auto max-w-[932px] px-4 py-8 sm:px-6` |
+| Hover state | none |
+| Shadow | `shadow-card` |
+| Accent usage | none on the surface |
+
+**Pattern notes:** Profile cards use `p-8` (design) where ui-rules.md says 24px — use `p-8` for any card that sits in this 932px column. Inside a card, sections are separated by `border-t border-border py-12`; section headings are `text-base font-semibold`.
+
+### CompletionIndicator
+
+File: `components/profile/CompletionIndicator.tsx`
+Last updated: 2026-11-15
+
+| Property | Class |
+| --- | --- |
+| Background | `bg-error-lightest` (tinted card — the one exception to ui-rules "white cards", per the design) |
+| Border | `border border-error-light` |
+| Border radius | `rounded-xl` |
+| Text — primary | `text-xl font-semibold text-text-primary`; icon `size-5 text-error` |
+| Text — secondary | `text-sm leading-relaxed text-text-dark` |
+| Spacing | `p-8`, title→body `mt-3`, body→tags `mt-4`, tags `gap-2` |
+| Hover state | none (not interactive) |
+| Shadow | `shadow-card` |
+| Accent usage | error red only: tag `rounded-md bg-error-light/50 px-2.5 py-1.5 text-xs font-semibold tracking-wide text-error uppercase`; ring track `stroke-error-light`, arc `stroke-error`, centre `text-3xl font-bold` |
+
+**Pattern notes:** Ring is a 130px SVG, 14px stroke, round caps, starts at 12 o'clock (`-rotate-90`). Missing-field slugs are lowercase in data and uppercased by CSS. Any future status banner (success, warning) should copy this shape with the matching token family; `error-light` / `error-lightest` are the only tint tokens that exist so far.
+
+### ResumeUpload
+
+File: `components/profile/ResumeUpload.tsx`
+Last updated: 2026-11-15
+
+| Property | Class |
+| --- | --- |
+| Background | zone idle `bg-surface-secondary`, dragging `bg-accent-muted` |
+| Border | zone `border border-dashed border-border-muted`, dragging `border-accent` |
+| Border radius | zone `rounded-xl`; buttons/file chip `rounded-md`; icon badge `rounded-full` |
+| Text — primary | `text-sm font-semibold text-text-primary` |
+| Text — secondary | `text-xs text-text-secondary` (hint), `text-sm text-text-secondary` (footer line) |
+| Spacing | zone `px-6 py-12`; hint `mt-1`, button `mt-4`; footer `mt-6 border-t border-border pt-4` |
+| Hover state | secondary button `hover:bg-surface-secondary`; primary `hover:bg-accent-dark` |
+| Shadow | `shadow-card` on badge and buttons |
+| Accent usage | icon `text-accent`; primary button `bg-accent text-accent-foreground` |
+
+**Pattern notes:** Errors use `text-sm text-error` with `role="alert"`; selected-file chip is `rounded-md border border-border bg-surface-secondary px-3.5 py-2.5`. Icon badge: `size-11 border border-border bg-surface`.
+
+### Buttons on app pages (profile)
+
+Files: `components/profile/ResumeUpload.tsx`, `ProfileForm.tsx`, `WorkExperienceSection.tsx`
+Last updated: 2026-11-15
+
+| Property | Primary (accent) | Secondary |
+| --- | --- | --- |
+| Background | `bg-accent` | `bg-surface` |
+| Border | none | `border border-border` |
+| Border radius | `rounded-md` | `rounded-md` |
+| Text | `text-accent-foreground text-sm font-medium` (Save Profile `font-semibold`) | `text-text-primary text-sm font-medium` |
+| Spacing | `px-4 py-2.5` (Save Profile `w-full py-3`) | `px-4 py-2` |
+| Hover state | `hover:bg-accent-dark` | `hover:bg-surface-secondary` |
+| Shadow | `shadow-card` (not on Save Profile) | `shadow-card` |
+
+**Pattern notes:** Two primary-button styles now exist on purpose: **dark `bg-overlay`** for homepage and auth screens, **purple `bg-accent`** for in-app actions (design for the profile page). Do not mix them within one screen. Text-link action: `text-sm font-medium text-accent hover:text-accent-dark disabled:text-text-muted` ("Add role").
+
+### Profile form controls
+
+Files: `components/profile/fieldStyles.ts`, `FormField.tsx`, `SelectInput.tsx`, `TagInput.tsx`, `WorkExperienceCard.tsx`
+Last updated: 2026-11-15
+
+| Property | Class |
+| --- | --- |
+| Background | `inputClass`: `bg-surface-secondary`, `placeholder-shown:bg-surface` (white when empty); `raisedInputClass`: always `bg-surface` |
+| Border | `border border-border`; focus `border-accent` |
+| Border radius | `rounded-md` |
+| Text — primary | `text-sm text-text-primary`; placeholder `text-text-muted`; read-only `text-text-secondary`; disabled `bg-surface-tertiary text-text-muted` |
+| Label | `text-xs font-semibold uppercase tracking-wide text-text-dark` + `mb-2` |
+| Spacing | input `px-3.5 py-2.5`; field grid `gap-x-5 gap-y-6`, 2 columns from `sm` |
+| Hover / focus | `focus:bg-surface focus:ring-1 focus:ring-accent focus:outline-none` |
+| Shadow | `shadow-card` only on white (empty / raised) inputs, removed when disabled |
+| Accent usage | focus ring; checkbox `size-4 accent-accent`; tag Add / "Add role" see below |
+
+**Pattern notes:**
+- **Filled = gray, empty = white with soft shadow**, so gaps in the profile are visible. Fields named in `missing_fields` (the education block) and anything sitting on a gray card use `raisedInputClass` (always white).
+- **Select** is a native `<select>` styled with `raisedInputClass appearance-none pr-10` plus a `size-4 text-text-secondary` ChevronDown at `right-3.5`.
+- **Tag chip** `rounded-md bg-surface-tertiary px-3 py-1.5 text-sm text-text-dark` with a `size-3` remove icon; chips `gap-3`, `mt-3` under the input. **Tag Add button** `rounded-md bg-surface-tertiary px-4 text-sm font-medium text-text-dark hover:bg-border`.
+- **Nested role card** `rounded-xl border border-border bg-surface-secondary p-5`, inner grid `gap-x-4 gap-y-5`; remove button `rounded-md p-1.5 text-text-muted hover:bg-surface-tertiary hover:text-text-primary`.
+

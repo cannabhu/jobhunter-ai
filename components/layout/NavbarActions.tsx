@@ -1,6 +1,7 @@
 import { TrackedLink } from "@/components/analytics/TrackedLink";
 import { Suspense } from "react";
 import { getUser } from "@/lib/insforge/server";
+import { SIGNED_IN_HOME } from "@/lib/routes";
 
 const button =
   "rounded-md bg-overlay px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-overlay-dark";
@@ -17,8 +18,8 @@ async function SessionActions() {
   if (!(await getUser())) return <SignedOut />;
 
   return (
-    <TrackedLink location="navbar" href="/dashboard" className={button}>
-      Go to Dashboard
+    <TrackedLink location="navbar" href={SIGNED_IN_HOME.href} className={button}>
+      {SIGNED_IN_HOME.label}
     </TrackedLink>
   );
 }

@@ -1,14 +1,15 @@
 import { TrackedLink } from "@/components/analytics/TrackedLink";
+import { SIGNED_IN_HOME } from "@/lib/routes";
 
 export function CtaButtons({ isAuthed, location }: { isAuthed: boolean; location: string }) {
   return (
     <div className="flex items-center justify-center gap-3">
       <TrackedLink
         location={location}
-        href={isAuthed ? "/dashboard" : "/login"}
+        href={isAuthed ? SIGNED_IN_HOME.href : "/login"}
         className="inline-flex items-center gap-2 rounded-md bg-overlay px-5 py-2.5 text-sm font-medium text-accent-foreground shadow-card hover:bg-overlay-dark"
       >
-        {isAuthed ? "Go to Dashboard" : "Get Started"}
+        {isAuthed ? SIGNED_IN_HOME.label : "Get Started"}
         <span aria-hidden className="text-[10px]">▶</span>
       </TrackedLink>
       <TrackedLink

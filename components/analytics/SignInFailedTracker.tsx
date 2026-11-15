@@ -11,7 +11,8 @@ export function SignInFailedTracker() {
     // Drop ?error from the URL so a reload doesn't count the same failure again.
     // The notice stays visible until the next navigation.
     const url = new URL(window.location.href);
-    if (url.searchParams.delete("error")) {
+    if (url.searchParams.has("error")) {
+      url.searchParams.delete("error");
       window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
     }
   }, []);

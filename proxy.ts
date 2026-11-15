@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@insforge/sdk/ssr/middleware";
+import { SIGNED_IN_HOME } from "@/lib/routes";
 
 const PROTECTED = ["/dashboard", "/profile", "/find-jobs", "/sign-out"];
 
@@ -26,8 +27,10 @@ export async function proxy(request: NextRequest) {
   if (isProtected && !accessToken) {
     return redirectKeepingSession(new URL("/login", request.url), response);
   }
-  if (pathname === "/login" && accessToken) {
-    return redirectKeepingSession(new URL("/dashboard", request.url), response);
+  // ?error means a page just rejected this session (revoked or forged token); without this
+  // exception the redirect from that page back to /login would bounce straight into a loop.
+  if (pathname === "/login" && accessToken && !request.nextUrl.searchParams.has("error")) {
+    return redirectKeepingSession(new URL(SIGNED_IN_HOME.href, request.url), response);
   }
 
   return response;
