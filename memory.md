@@ -1,63 +1,82 @@
-# Memory — Feature 11 Filter + Sort + Pagination (JobPilot / job-rider)
+# Memory — Feature 13 Company Research Agent (JobPilot / job-rider)
 
 Last updated: 2026-11-15
 
 ## What was built
 
-- **Feature 11, built and checked headlessly. It is not committed.** Feature 10 is committed (`2d237e1`), so the working tree holds only feature 11.
-- **New:** `lib/jobsQuery.ts` — `parseJobsQuery()`, `buildJobsHref()`, `buildTextSearchFilter()`, `hasActiveFilters()`, plus the `MATCH_FILTERS`, `JOB_SORTS` and `DEFAULT_JOBS_QUERY` constants.
+- **Feature 13, built and checked headlessly and live. It is NOT committed.** Features 11 and 12 are committed (`baa2d78`, `1da14ce`), so the working tree holds only feature 13.
+- **New:**
+  - `agent/research.ts`: `researchCompany()` finds the homepage, reads it in one Browserbase/Stagehand session, then GPT-4o writes the dossier.
+  - `lib/companyResearch.ts`: pure helpers (homepage choice, job-board denylist, `pickSubPages`, `normalizeDossier`, `parseModelDossier`, limits).
+  - `lib/researchSchema.ts`.
+  - `app/api/agent/research/route.ts`: `POST { jobId }`, `maxDuration` 120.
+  - `components/job-details/DossierView.tsx`.
 - **Changed:**
-  - `lib/insforge/jobs.ts`: `listJobs(insforge, userId, query)` now filters, sorts and pages in the database, and returns `{ jobs, total, page }`.
-  - `lib/pagination.ts`: `buildPageItems(totalPages, currentPage)`.
-  - `lib/routes.ts`: added `FIND_JOBS_PAGE_PATH`.
-  - `types/index.ts`: added `MatchFilter`, `JobSort`, `JobsQuery`, and `page` on `JobListPage`.
-  - `app/(app)/find-jobs/page.tsx`: takes the `searchParams` promise and awaits it inside the `<Suspense>` content component.
-  - `components/find-jobs/JobFilters.tsx`: now a client component.
-  - `FilterSelect.tsx`: now controlled.
-  - `JobsPagination.tsx`: now `next/link` links.
-  - `JobsTable.tsx`: new `filtered` prop, with a "No jobs match your filters" state and a Clear filters link.
-- **Docs updated:** `progress-tracker.md` (11 ticked, Next = 12, long note), `ui-registry.md`, `architecture.md`, `library-docs.md` (PostgREST rules).
+  - `components/job-details/CompanyResearch.tsx`: now a client component with Research / Refresh button, status and error lines.
+  - `app/(app)/find-jobs/[id]/page.tsx`: passes the dossier and `jobId`.
+  - `lib/insforge/jobs.ts`: `getJobDetail` now returns the dossier, plus new `getJobForResearch` and `saveCompanyResearch`.
+  - `lib/insforge/agentLogs.ts`: `runId` may be null.
+  - `agent/matcher.ts`: `describeProfile` is exported.
+  - `types/index.ts`: `CompanyDossier`, `ResearchJob`, `ResearchCompanyResponse`, and `JobDetail.companyResearch` / `researchedLabel`.
+  - `next.config.ts`: Stagehand added to `serverExternalPackages`.
+  - `package.json` and lock: added `@browserbasehq/stagehand`, and **zod pinned to exactly 4.6.6**.
+- **Docs updated:** `progress-tracker.md` (13 ticked, Next = 14, long notes), `ui-registry.md`, `architecture.md`, `library-docs.md` (Browserbase and Stagehand sections rewritten for v4), `code-standards.md`.
 
 ## Decisions made
 
-- **Filter, sort and page live in the URL** (`?q=&match=&sort=&page=`), not client state. The URL is treated as untrusted: unknown values fall back to defaults.
-- **Default sort is Match Score** (it was newest-first in feature 10), because that is the design's default.
-- **High means `match_score >= MATCH_THRESHOLD` (70), Low means `< 70`.** Text matches company or title, case-insensitive. Any filter or sort change resets to page 1.
-- **`JobFilters`:** the text box waits 300ms after the last keystroke. The selects apply at once, using `useOptimistic`.
-- **Pagination uses real `<Link>`s** with `prefetch={false}`.
-- **Rows are still not links** (job details is feature 12). A new Find Jobs search refreshes under whatever filters are already in the URL, so a non-matching new job stays hidden until the filters are cleared.
+- **Synchronous run:** the route awaits the whole research (about 25s per page, 48 to 79s in tests). There is no status column and no polling. If a deployment host cuts requests short, the fallback is background + polling.
+- **Homepage:** follow the Adzuna `source_url` server-side and take the final registrable domain. If it lands on a job board or ATS (denylist), an unsafe host, or the fetch fails, fall back to `https://www.{cleanedCompanyName}.com`. This differs from the build plan's "strip the subdomain".
+- **Always a dossier:** browser failures only shorten the research (warnings in `agent_logs` with `run_id` null). Only a failed or unusable GPT-4o answer is an error (503 outage/quota, 500 otherwise), and nothing is saved then.
+- **Sources:** `sources` comes from pages actually visited, never from the model. Stored jsonb is re-read through `normalizeDossier` (caps, http(s) links only).
+- **Refresh allowed:** limited to 3 runs per user per 10 minutes (in-memory limiter), and it overwrites `company_research` / `researched_at`.
+- **Dossier UI:** no design exists, so it reuses the existing card tokens. Tech stack chips use the info tint, because success and accent already mean matched and gap on this page. Your Edge is highlighted in `accent-muted`.
+- **Navigation limit:** `browserSettings.allowedDomains` restricts the session to the company's own domain.
+- **Time budget:** no new pages after 30s of the 70s budget remain, and a timer closes the session at 85s.
+- **Synthesis tokens:** `max_tokens` is 1400, not the documented 800, which truncates the JSON.
 
 ## Problems solved
 
-- **A page past the last row is a 416 error (`PGRST103`), not an empty list.** `listJobs` catches it and returns the real last page.
-- **A second `.or()` on one query fails to parse (400).** So Low Match is a plain `.lt()`, which skips null scores. None can exist, because the agent only inserts scored jobs. If that ever changes, Low needs a different query. The builder has no `.and()`.
-- **The InsForge `database.from()` is `@supabase/postgrest-js`,** so `.or()` and `.range()` work even though the InsForge docs list only the simple filters. User text inside `.or()` must be LIKE-escaped, then double-quoted.
-- **Probing the live API without a user session:** the anon key is limited by RLS to zero rows, so it still shows parse errors (400) and range errors (416). The SDK's CJS entry won't load in Node here; import `node_modules/@insforge/sdk/dist/index.mjs` directly. Load `.env.local` with `set -a; . ./.env.local; set +a`. The sandbox blocks network, so live calls need `dangerouslyDisableSandbox`.
-- **Running TypeScript helpers without a bundler:** `node --experimental-strip-types --import <register.mjs>`, where the register file adds a small resolve hook mapping `@/x` to `<repo>/x.ts`. The scratch scripts are in the session scratchpad and are gone after cleanup.
-- **DB checks without a transaction:** `run-raw-sql` blocks `begin`/`rollback`. Use a `DO $$ ... RAISE EXCEPTION 'ROLLBACK_OK%', result $$;` block, which rolls back and reports in the error message.
-- **`next build` while the dev server runs:** build in a scratch copy (rsync without `.next`, `node_modules` and `.git`, then copy `node_modules`), because the dev server owns `.next`.
-- **Adzuna DNS on this Mac:** Node and curl fail to resolve `api.adzuna.com` (`getaddrinfo` fails; `nslookup` works). OpenAI resolves fine. If the dev server shows "Job search is temporarily unavailable", check the server log for `ENOTFOUND` or `ETIMEDOUT` before blaming the key. Try another network or DNS server.
+- **Stagehand is v4.4, not the v3 API in the old docs.** Use `browserbase.launch({ apiKey, projectId, api_timeout })`, then `Stagehand.create({ browser, model: { modelName: "openai/gpt-4o", apiKey } })`. The page is `(await browser.context.pages())[0]`, and `extract(instruction, zodSchema, { page, timeout })` returns `{ data }`. Close Stagehand first, then the browser. There is no `lib/browserbase.ts`.
+- **Link fields in an extract schema must be `z.string().url()`.** With a plain string the model returns element ids like `0-2448`, which showed up as fake "sources".
+- **Two zod copies break `extract()` type-checking.** Stagehand pins zod 4.6.6, so the project is pinned to exactly 4.6.6.
+- **Turbopack can't bundle Stagehand** (it reads its extension zip relative to its own files). It is now in `serverExternalPackages`.
+- **`cleanCompanyName`:** the documented regex `\s*(Co\.?).*$` turns "Coinbase" into an empty string. The fixed version strips legal suffixes only after whitespace or a comma.
+- **DNS on this Mac:** Node's `getaddrinfo` can't resolve `api.browserbase.com` or `api.adzuna.com` (`ENOTFOUND`) though `nslookup` works. In the dev server the browser step fails every time ("Failed to upload the Stagehand extension to Browserbase") and research silently falls back to job + profile only. Live tests used a test-only preload that resolves through 8.8.8.8; the scratch files are gone after cleanup. Real fix: set the machine's DNS to 1.1.1.1 / 8.8.8.8.
+- **Stale ` 2` duplicate files in `.next` make a plain `tsc` report errors.** Filter them with `grep -v "^\.next/"`. This is iCloud sync again, and a stopped dev server plus `rm -rf .next` would clear it.
+- **Live testing without a user session:** the sandbox blocks network, so use `dangerouslyDisableSandbox`, and load env with `set -a; . ./.env.local; set +a`. TypeScript helpers run with `node --experimental-strip-types --import <register.mjs>`, where a small hook maps `@/x` to `<repo>/x.ts`. A DB check without a transaction uses a `DO $$ ... RAISE EXCEPTION 'ROLLBACK_OK ...' $$` block. `next build` goes in a scratch copy because the dev server owns `.next`.
 
 ## Current state
 
-- **Verified:** tsc, lint and `next build` pass, and `/find-jobs` is still a partial prerender. Scripted tests pass for URL parsing, hrefs, the text-filter escaping, and page-button windows (every total from 1 to 30). The same filters, sort and page boundaries were checked as SQL in a rolled-back block. Signed out, `/find-jobs` with junk query params redirects to `/login`.
-- **Not verified (needs a real signed-in browser):** the filter, sort and paging clicks against real rows. The `jobs` table was empty and there was no user session, so the PostgREST query was checked for parse errors and the SQL for meaning, but never run end to end as a user. Also untested: the typing pause, back/forward, a stale `?page=` past the end, and not overwriting text while typing.
-- **Still owed from earlier:** the signed-in browser pass for features 06 to 10. That means a real profile save, PDF upload and replace, the View, Extract and Generate clicks, sign-out, OAuth landing on `/profile`, the Find Jobs click, the 400, 422 and 429 paths, a repeat search inserting nothing, the two PostHog events arriving, and cross-user RLS.
-- **Feature 06 review issues (b), (d), (e) are still unchecked.**
+- **Verified:** tsc, lint and `next build` pass, with `/api/agent/research` registered. Scripted helper tests pass. Live runs against real Browserbase and GPT-4o:
+  - Stripe via the company-name guess: 3 pages, 79s.
+  - Stripe via a redirect: 48s.
+  - Stripe from a Greenhouse link: 52s.
+  - A made-up company: "nothing to read", still a full dossier in 21s.
+  - The update payload and a replace-on-refresh pass the real table in a rolled-back block. Signed out, the route returns 401 and `/find-jobs/<id>` redirects to `/login`.
+- **Not verified (needs a real signed-in browser):**
+  - the Research Company click, the status line and the page refresh after saving;
+  - Refresh research;
+  - the 429 on a fourth run;
+  - another user's job id giving a 404;
+  - `company_researched` reaching PostHog;
+  - what the dossier card looks like (never screenshotted).
+- **Still owed from earlier:** the signed-in browser pass for features 06 to 12, and feature 06 review issues (b), (d), (e).
+- **Not built:** fetching the full job description (Adzuna's `about_role` is a 500 character preview).
 
 ## Next session starts with
 
-1. Ask whether to **commit** feature 11 (nothing is committed).
-2. Do the **one real signed-in browser pass** (covers 06 to 11). Check first that the dev server can reach Adzuna. Run a search so there are rows, then try the text filter, High/Low, all three sorts, paging with more than 20 jobs, back/forward, and a `?page=` past the end.
-3. Start **12 Job Details Page — Full UI.** Read `context/build-plan.md` first. Job data from the DB is already available, so wire real data for the job info and match sections. Company research shows the empty state only. The Apply Now and View Job Post links use `source_url`. Make table rows link to `/find-jobs/[id]`.
+1. Ask whether to **commit** feature 13 (nothing is committed). Branch is `development`.
+2. Fix the machine's DNS first, so Browserbase and Adzuna resolve from the dev server. Then do the **one real signed-in browser pass** covering 06 to 13: research a job, reload (the dossier persists), Refresh, a fourth run in 10 minutes (429), and look at the dossier card visually.
+3. Start **14 Dashboard Page — Full UI.** Read `context/build-plan.md` first. When it ships, change `SIGNED_IN_HOME` in `lib/routes.ts` back to `/dashboard`. Features 15 and 16 will read `researched_at`.
 
 ## Open questions
 
 - Which of the 06 review issues (b), (d), (e) are still real?
 - Should the Dashboard link be hidden or disabled until feature 14 (it goes to the 404 page)?
 - Why does PostHog `identify` never fire on the client? Still unresolved.
-- A complete-profile design for `CompletionIndicator` is missing (the banner is just hidden).
-- Access-token lifetime, and the success path of the proxy refresh on `/api` routes, were never tested with a real expired session. A long agent run that outlives the token mid-request is not covered.
-- The in-memory rate limiter needs a DB-backed version before real deployment (it is per instance and resets on restart).
-- An iCloud-synced Desktop corrupted `node_modules` once (during the 08 install). Consider moving the project out of a synced folder.
-- Repeat jobs are skipped, not re-scored, so old match scores go stale if the profile changes. Decide whether that needs a re-score option.
+- `CompletionIndicator` has no complete-profile design (the banner is just hidden).
+- Access-token lifetime, and the success path of the proxy refresh on `/api` routes, were never tested with a real expired session. A research run (up to about 2 minutes) could outlive the token mid-request, since each route calls `getUser()` once at the start.
+- The in-memory rate limiter needs a DB-backed version before real deployment (per instance, resets on restart).
+- An iCloud-synced Desktop corrupts `node_modules` and `.next` at times. Consider moving the project out of a synced folder.
+- Repeat jobs are skipped, not re-scored, so old match scores go stale if the profile changes.
+- A 120s synchronous research request may hit the host's own time limit once deployed.

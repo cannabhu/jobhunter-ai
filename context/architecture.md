@@ -65,7 +65,7 @@
 │       │   └── extract/route.ts           → Extract profile data from uploaded resume PDF
 ├── agent/
 │   ├── adzuna.ts                          → discoverJobs(): search Adzuna, skip already-saved jobs, score the new ones, insert (feature 10)
-│   ├── research.ts                        → researchCompany(): resolveHomepage → one Stagehand/Browserbase session → GPT-4o dossier. Always returns a dossier unless GPT-4o fails
+│   ├── research.ts                        → researchCompany(): resolveHomepage (job link → GPT-4o website lookup → name guess, each probed) → one Stagehand/Browserbase session → GPT-4o dossier. Always returns a dossier unless GPT-4o fails
 │   ├── matcher.ts                         → scoreJob(): one GPT-4o call per job against the saved profile (feature 10)
 │   ├── resumeExtractor.ts                 → GPT-4o resume text → form-shaped profile data (feature 07)
 │   ├── resumeWriter.ts                    → GPT-4o profile → resume summary + role bullets (feature 08)
@@ -129,7 +129,7 @@
 │   │   ├── jobs.ts                        → getSavedJobScores() (repeat-search lookup), listJobs(query) — filtered, sorted, 20 per page (Find Jobs page) — getJobDetail(id) (job details page, with the saved dossier), getJobForResearch(id) and saveCompanyResearch()
 │   │   ├── agentLogs.ts                   → logAgent(): one line to agent_logs, never throws
 │   │   └── resumeStorage.ts               → downloadResume(): reads the private resume with retries and real-error logging (file, extract and generate routes)
-│   ├── companyResearch.ts                 → Pure research helpers: homepage choice (job-board denylist, registrableDomain, isSafePublicHost, cleanCompanyName), pickSubPages(), normalizeDossier()/parseModelDossier(), limits
+│   ├── companyResearch.ts                 → Pure research helpers: homepage choice (job-board denylist, registrableDomain, isSafePublicHost, cleanCompanyName, parseWebsiteAnswer), pickSubPages(), normalizeDossier()/parseModelDossier(), limits
 │   ├── researchSchema.ts                  → zod body schema for POST /api/agent/research
 │   ├── adzuna.ts                          → Adzuna client: searchJobs(), detectCountry(), formatSalary(), toJobType()
 │   ├── jobScoring.ts                      → normalizeJobScore(): untrusted GPT-4o JSON → safe JobScore
