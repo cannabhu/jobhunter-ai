@@ -83,7 +83,8 @@
 │   ├── ui/                                → shadcn/ui components only
 │   ├── layout/
 │   │   ├── Navbar.tsx                     → Homepage navbar
-│   │   ├── AppNavbar.tsx                  → Signed-in navbar (icons, underline on active item)
+│   │   ├── AppNavbar.tsx                  → Client wrapper: usePathname() → AppNavbarBar
+│   │   ├── AppNavbarBar.tsx               → Signed-in navbar markup (icons, underline on the active item); also the Suspense fallback in app/(app)/layout.tsx
 │   │   ├── SignOutButton.tsx              → One-click sign out in AppNavbar (POST /api/auth/sign-out)
 │   │   └── Footer.tsx
 │   ├── homepage/
@@ -107,21 +108,24 @@
 │   │   ├── SearchControls.tsx             → Search card: job title, location, Find Jobs, result banner
 │   │   ├── JobFilters.tsx                 → Filter bar (client): text filter + FilterSelect dropdowns; writes `?q&match&sort` to the URL
 │   │   ├── FilterSelect.tsx               → Controlled styled native select used by JobFilters
-│   │   ├── JobsTable.tsx                  → Jobs table (+ empty states: no jobs yet / nothing matches the filters)
+│   │   ├── JobsTable.tsx                  → Jobs table (+ empty states: no jobs yet / nothing matches the filters); the role links to /find-jobs/[id], stretched over the row
 │   │   ├── MatchScoreBar.tsx              → Colour coded score bar + percentage (SVG, no inline style)
 │   │   └── JobsPagination.tsx             → "Showing x to y of z" + page links (next/link, filters kept)
 │   └── job-details/
-│       ├── JobInfo.tsx
-│       ├── MatchScore.tsx
-│       ├── JobDescription.tsx
-│       ├── CompanyResearch.tsx
-│       └── JobActions.tsx
+│       ├── JobHeader.tsx                  → Title, company, match badge, View Job Post
+│       ├── JobInfo.tsx                    → The four info cards (salary, location, job type, date found)
+│       ├── MatchReasoning.tsx             → AI Match Reasoning card
+│       ├── SkillsComparison.tsx           → "You have" / "Gap skills" chips
+│       ├── JobDescription.tsx             → Job Description card (Adzuna snippet)
+│       ├── CompanyResearch.tsx            → Empty state now; dossier view comes with feature 13
+│       ├── JobActions.tsx                 → Apply Now at {company}
+│       └── SectionIcon.tsx                → Round icon that leads a card heading
 ├── lib/
 │   ├── insforge/
 │   │   ├── client.ts                      → InsForge browser client instance
 │   │   ├── server.ts                      → InsForge server client + getUser()
 │   │   ├── profile.ts                     → getProfile() — reads the profiles row, creating it on first use
-│   │   ├── jobs.ts                        → getSavedJobScores() (repeat-search lookup) and listJobs(query) — filtered, sorted, 20 per page (Find Jobs page)
+│   │   ├── jobs.ts                        → getSavedJobScores() (repeat-search lookup), listJobs(query) — filtered, sorted, 20 per page (Find Jobs page) — and getJobDetail(id) (job details page)
 │   │   ├── agentLogs.ts                   → logAgent(): one line to agent_logs, never throws
 │   │   └── resumeStorage.ts               → downloadResume(): reads the private resume with retries and real-error logging (file, extract and generate routes)
 │   ├── browserbase.ts                     → Browserbase session creation + management
@@ -131,6 +135,7 @@
 │   ├── findJobs.ts / findJobsSchema.ts / findJobsMessage.ts → Find Jobs path + limits, zod body schema, banner text
 │   ├── relativeTime.ts                    → formatFoundLabel(): "2 hours ago" / "Yesterday"
 │   ├── pagination.ts                      → buildPageItems(totalPages, currentPage): page buttons for the jobs pagination
+│   ├── jobDetails.ts                      → isJobId() (UUID check for the [id] segment), parseJobType()/jobTypeLabel(), safeHttpUrl() (http(s) only)
 │   ├── jobsQuery.ts                       → Find Jobs URL state: parseJobsQuery(), buildJobsHref(), buildTextSearchFilter(), hasActiveFilters()
 │   ├── profileSchema.ts                   → zod validation of the profile FormData
 │   ├── profileConstants.ts                → Limits and allowed enum values shared by Save validation and resume extraction

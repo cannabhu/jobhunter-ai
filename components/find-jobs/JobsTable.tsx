@@ -1,7 +1,7 @@
 import { Building2 } from "lucide-react";
 import Link from "next/link";
 import { MatchScoreBar } from "@/components/find-jobs/MatchScoreBar";
-import { FIND_JOBS_PAGE_PATH } from "@/lib/routes";
+import { FIND_JOBS_PAGE_PATH, jobDetailPath } from "@/lib/routes";
 import type { JobListItem } from "@/types";
 
 type Props = {
@@ -61,7 +61,7 @@ export function JobsTable({ jobs, filtered }: Props) {
         </thead>
         <tbody>
           {jobs.map((job) => (
-            <tr key={job.id} className="border-b border-border last:border-b-0 hover:bg-surface-secondary">
+            <tr key={job.id} className="relative border-b border-border last:border-b-0 hover:bg-surface-secondary">
               <td className={`${cellClass} pl-11`}>
                 <div className="flex items-center gap-3">
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface-tertiary">
@@ -70,7 +70,16 @@ export function JobsTable({ jobs, filtered }: Props) {
                   <span className="truncate font-semibold text-text-primary">{job.company}</span>
                 </div>
               </td>
-              <td className={`${cellClass} truncate font-medium text-text-dark`}>{job.title}</td>
+              <td className={`${cellClass} font-medium text-text-dark`}>
+                {/* The link's ::after covers the whole row (the <tr> is the positioned ancestor), so a click anywhere opens the job. */}
+                <Link
+                  href={jobDetailPath(job.id)}
+                  prefetch={false}
+                  className="block truncate after:absolute after:inset-0 focus-visible:after:rounded-md focus-visible:after:outline-2 focus-visible:after:outline-accent"
+                >
+                  {job.title}
+                </Link>
+              </td>
               <td className={cellClass}>
                 <MatchScoreBar score={job.matchScore} />
               </td>

@@ -156,5 +156,24 @@ export type JobListPage = {
   page: number;
 };
 
+/** One saved job on the job details page, mapped from its `jobs` row. */
+export type JobDetail = {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  salary: string | null;
+  jobType: "fulltime" | "parttime" | "contract" | null;
+  /** Adzuna's description snippet. */
+  aboutRole: string | null;
+  matchScore: number;
+  matchReason: string | null;
+  matchedSkills: string[];
+  missingSkills: string[];
+  /** The Adzuna link that View Job Post and Apply Now open; null when missing or not a web link. */
+  sourceUrl: string | null;
+  foundLabel: string;
+};
+
 /** A page button in the jobs pagination; `ellipsis` stands for the skipped pages. */
 export type PaginationItem = number | "ellipsis";

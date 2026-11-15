@@ -1,8 +1,9 @@
 import type { createInsforgeServer } from "@/lib/insforge/server";
+import { parseJobType, safeHttpUrl } from "@/lib/jobDetails";
 import { buildTextSearchFilter } from "@/lib/jobsQuery";
 import { formatFoundLabel } from "@/lib/relativeTime";
 import { MATCH_THRESHOLD } from "@/lib/utils";
-import type { JobListPage, JobsQuery } from "@/types";
+import type { JobDetail, JobListPage, JobsQuery } from "@/types";
 
 type InsforgeServer = Awaited<ReturnType<typeof createInsforgeServer>>;
 
@@ -120,4 +121,55 @@ export async function listJobs(insforge: InsforgeServer, userId: string, query: 
     console.error("[lib/insforge/listJobs]", error);
     return { jobs: [], total: 0, page: 1 };
   }
+}
+
+type JobDetailRow = {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  salary: string | null;
+  job_type: string | null;
+  about_role: string | null;
+  match_score: number | null;
+  match_reason: string | null;
+  matched_skills: string[] | null;
+  missing_skills: string[] | null;
+  source_url: string | null;
+  found_at: string;
+};
+
+/**
+ * One of the user's saved jobs, or null when it doesn't exist or belongs to someone else (the user filter and RLS
+ * make both look the same). Throws on a database error, so a failed query is never shown as "not found".
+ */
+export async function getJobDetail(insforge: InsforgeServer, userId: string, jobId: string): Promise<JobDetail | null> {
+  const { data, error } = await insforge.database
+    .from("jobs")
+    .select(
+      "id, title, company, location, salary, job_type, about_role, match_score, match_reason, matched_skills, missing_skills, source_url, found_at",
+    )
+    .eq("id", jobId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  // The select above lists exactly these columns, so the row has this shape.
+  const row = data as JobDetailRow;
+  return {
+    id: row.id,
+    title: row.title,
+    company: row.company,
+    location: row.location,
+    salary: row.salary,
+    jobType: parseJobType(row.job_type),
+    aboutRole: row.about_role,
+    matchScore: row.match_score ?? 0,
+    matchReason: row.match_reason,
+    matchedSkills: row.matched_skills ?? [],
+    missingSkills: row.missing_skills ?? [],
+    sourceUrl: safeHttpUrl(row.source_url),
+    foundLabel: formatFoundLabel(row.found_at),
+  };
 }

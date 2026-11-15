@@ -218,6 +218,33 @@ Last updated: 2026-11-15
 - **Nested role card** `rounded-xl border border-border bg-surface-secondary p-5`, inner grid `gap-x-4 gap-y-5`; remove button `rounded-md p-1.5 text-text-muted hover:bg-surface-tertiary hover:text-text-primary`.
 
 
+### Job Details page (feature 12)
+
+Files: `app/(app)/find-jobs/[id]/page.tsx`, `components/job-details/*`
+Last updated: 2026-11-15
+
+Built from `context/designs/job-details.png` (1418px frame, sizes measured from the PNG). Column `mx-auto max-w-[844px] px-4 pt-8 pb-12 sm:px-6` (796px of content), sections stacked `gap-6`. Every section is the card `rounded-xl border border-border bg-surface shadow-card`.
+
+| Part | Class |
+| --- | --- |
+| Back to Jobs | `mb-1 inline-flex w-fit items-center gap-1.5 text-sm font-medium text-text-dark hover:text-text-primary`, `ChevronLeft size-4` |
+| Header card | `p-6`, `flex-col gap-4 sm:flex-row sm:items-start sm:justify-between`; logo tile `size-14 rounded-xl border border-border bg-surface-tertiary` + `Building2 size-6 text-text-secondary`, `gap-4` to the text; title `text-2xl font-semibold text-text-primary`; company line `mt-1 text-sm text-text-secondary`, `gap-x-2.5`, a `size-1 rounded-full bg-text-muted` dot |
+| Match badge | `rounded-full px-2.5 py-0.5 text-xs font-medium`; at or above `MATCH_THRESHOLD` `bg-success-lightest text-success-foreground`, below it `bg-surface-secondary text-text-secondary` |
+| View Job Post | secondary button `rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-text-primary shadow-card hover:bg-surface-secondary` + `ExternalLink size-4`, `gap-2`; top-aligned with the tile |
+| Info cards | `grid gap-3 sm:grid-cols-2 lg:grid-cols-4`; card `flex items-center gap-3 p-4`; icon tile `size-10 rounded-lg` + `size-5` icon, tinted per card: salary `bg-success-lightest text-success-alt`, location `bg-info-lightest text-info-medium`, job type `bg-accent-muted text-accent`, date `bg-surface-tertiary text-text-secondary`; value `truncate text-sm font-semibold text-text-primary`; label `mt-0.5 text-xs font-medium tracking-wide text-text-muted uppercase` |
+| Section icon (`SectionIcon`) | `size-7 rounded-full`, 16px icon; tones `success` (`bg-success-lightest text-success-alt`), `neutral` (`bg-surface-tertiary text-text-secondary`), `accent` (`bg-accent-muted text-accent`); `gap-2.5` to the heading |
+| AI Match Reasoning | `p-6`; heading `text-xs font-semibold tracking-wide text-text-secondary uppercase`; body `mt-3 text-sm leading-relaxed text-text-primary` |
+| Skills card | `p-6`; heading as above (no icon); group labels `text-xs text-text-muted` (`mt-4` first, `mt-3` second), chips `mt-2 flex flex-wrap gap-2`; chip `inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium` + `size-3` icon: matched `bg-success-lightest text-success-foreground` + `Check`, gap `bg-accent-muted text-accent` + `X` |
+| Job Description | `p-6`; heading `text-base font-semibold text-text-primary`; body `mt-5 text-sm leading-relaxed text-text-primary`; when the text ends in an ellipsis (Adzuna's 500 character preview) a note `mt-3 text-xs text-text-muted` follows: "Preview only." + link `font-medium text-accent hover:text-accent-dark` to `source_url` (new tab), or plain text when there is no link |
+| Company Research | `overflow-hidden` card; header `flex items-center justify-between gap-4 border-b border-border px-6 py-4`; **primary accent button** `rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground shadow-card hover:bg-accent-dark` + `Search size-4`; empty state `flex-col items-center px-6 py-12 text-center`, tile `size-12 rounded-xl bg-surface-tertiary` + `Building2 size-6 text-text-muted`, title `mt-3 text-sm font-medium text-text-primary`, text `mt-1 max-w-xs text-sm text-text-muted` |
+| Apply Now | full-width accent link `rounded-lg bg-accent px-5 py-3 text-sm font-medium text-accent-foreground shadow-card hover:bg-accent-dark`, "Apply Now at {company}" |
+
+**Pattern notes:** this page's buttons use `rounded-lg` and `px-4 py-2`, as in the design, while the profile and Find Jobs buttons are `rounded-md`; the two sets are not mixed on one screen. Section headings come in two forms: an uppercase `text-xs` label for the AI and skills cards, and `text-base font-semibold` for Job Description and Company Research. Empty states are `text-sm text-text-muted`. The Research Company button has no handler until feature 13.
+
+### AppNavbar bar vs wrapper (feature 12)
+
+`AppNavbarBar` holds the markup and classes documented under AppNavbar (unchanged); `AppNavbar` only supplies `usePathname()`. `app/(app)/layout.tsx` wraps it in `<Suspense fallback={<AppNavbarBar pathname={null} />}>`, so on `/find-jobs/[id]` the bar renders at once with no active item and the underline appears when the pathname resolves.
+
 ### Find Jobs page (feature 09)
 
 Files: `app/(app)/find-jobs/page.tsx`, `components/find-jobs/SearchControls.tsx`, `JobFilters.tsx`, `FilterSelect.tsx`, `JobsTable.tsx`, `MatchScoreBar.tsx`, `JobsPagination.tsx`
@@ -235,7 +262,7 @@ Built from `context/designs/find-jobs.png` (sampled colours, 1440px frame). Page
 | Filter bar | `flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-2.5`; text input is borderless (`pl-7`, icon `left-1`) with the card focus ring on `focus-within`; selects sit after a `sm:border-l sm:pl-4` divider |
 | Filter select | native `<select>` `appearance-none rounded-md border border-border bg-surface py-1.5 pr-9 pl-4 text-sm font-medium shadow-card` + `ChevronDown size-4 text-text-secondary` at `right-3`; first (match filter) `text-text-primary`, second (sort) `text-text-dark`, as in the design |
 | Table | `table-fixed min-w-[860px]` in an `overflow-x-auto` wrapper; column widths 22.4 / 22.5 / 22.5 / 17.4 / 15.2 %; `thead` `bg-surface-secondary border-b border-border`; header `h-12 px-6 text-xs font-medium tracking-wider uppercase text-text-secondary` (Match Score centred, first column `pl-11`) |
-| Row | `h-16` cells `px-6`, `border-b border-border last:border-b-0 hover:bg-surface-secondary`; company `font-semibold text-text-primary`, role and salary `font-medium text-text-dark`, date `text-text-secondary` |
+| Row | `relative h-16` cells `px-6`, `border-b border-border last:border-b-0 hover:bg-surface-secondary`; the role is a `<Link className="block truncate after:absolute after:inset-0">` so the whole row opens `/find-jobs/[id]` (feature 12); company `font-semibold text-text-primary`, role and salary `font-medium text-text-dark`, date `text-text-secondary` |
 | Company tile | `size-8 rounded-md border border-border bg-surface-tertiary` with `Building2 size-4 text-text-secondary`, `gap-3` to the name |
 | Match score bar | SVG `h-1.5 w-24`, track `fill-border-light`, fill `fill-success-alt` (90+) / `fill-info-medium` (80 to 89) / `fill-warning` (below 80); percentage `w-9 text-sm font-semibold tabular-nums`, `gap-2` |
 | Pagination footer | `border-t border-border bg-surface-secondary/50 px-6 py-4`; summary `text-sm text-text-secondary` with `font-semibold text-text-primary` numbers; buttons `h-8 min-w-8 rounded-md border border-border bg-surface px-3 text-sm font-medium text-text-dark shadow-card`, disabled `text-text-muted`, current page `border-accent-light bg-accent-muted text-accent`, ellipsis `text-text-muted`; `gap-2` |
