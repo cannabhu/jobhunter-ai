@@ -101,3 +101,16 @@ export type ExtractResumeResponse = { success: true; data: ExtractedProfile } | 
 
 /** Response of `POST /api/resume/generate`. */
 export type GenerateResumeResponse = { success: true } | { success: false; error: string };
+
+/** One row of the Find Jobs table. `foundLabel` is already human readable ("2 hours ago"). */
+export type JobListItem = {
+  id: string;
+  company: string;
+  title: string;
+  matchScore: number;
+  salary: string | null;
+  foundLabel: string;
+};
+
+/** A page button in the jobs pagination; `ellipsis` stands for the skipped pages. */
+export type PaginationItem = number | "ellipsis";

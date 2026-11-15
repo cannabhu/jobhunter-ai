@@ -217,3 +217,28 @@ Last updated: 2026-11-15
 - **Tag chip** `rounded-md bg-surface-tertiary px-3 py-1.5 text-sm text-text-dark` with a `size-3` remove icon; chips `gap-3`, `mt-3` under the input. **Tag Add button** `rounded-md bg-surface-tertiary px-4 text-sm font-medium text-text-dark hover:bg-border`.
 - **Nested role card** `rounded-xl border border-border bg-surface-secondary p-5`, inner grid `gap-x-4 gap-y-5`; remove button `rounded-md p-1.5 text-text-muted hover:bg-surface-tertiary hover:text-text-primary`.
 
+
+### Find Jobs page (feature 09)
+
+Files: `app/(app)/find-jobs/page.tsx`, `components/find-jobs/SearchControls.tsx`, `JobFilters.tsx`, `FilterSelect.tsx`, `JobsTable.tsx`, `MatchScoreBar.tsx`, `JobsPagination.tsx`
+Last updated: 2026-11-15
+
+Built from `context/designs/find-jobs.png` (sampled colours, 1440px frame). Page wrapper `mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-14`, sections stacked `gap-6`, every section a card `rounded-xl border border-border bg-surface shadow-card`. The visible page title is absent in the design, so an `sr-only` h1 carries it.
+
+| Part | Class |
+| --- | --- |
+| Search card | `p-6`; fields `flex-col gap-4 sm:flex-row sm:items-end`; two `flex-1` fields plus the button |
+| Label | the profile `labelClass` (`text-xs font-semibold uppercase tracking-wide text-text-dark`) + `mb-1.5` |
+| Search input | `rounded-md border border-border bg-surface py-2.5 text-sm shadow-card placeholder:text-text-muted focus:border-accent focus:ring-1 focus:ring-accent`; job title has a `Search size-4 text-text-muted` icon (`left-3.5`, `pl-9`), location is `px-4` |
+| Find Jobs button | purple primary: `h-10 rounded-md bg-accent px-5 text-sm font-medium text-accent-foreground shadow-card hover:bg-accent-dark` + `Search size-4` icon |
+| Result banner | `role="status" mt-4 flex h-11 items-center gap-2 rounded-md border border-success-light bg-success-lightest px-3.5 text-sm font-medium text-success-foreground`, `Sparkles size-4 text-success-alt` |
+| Filter bar | `flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-2.5`; text input is borderless (`pl-7`, icon `left-1`) with the card focus ring on `focus-within`; selects sit after a `sm:border-l sm:pl-4` divider |
+| Filter select | native `<select>` `appearance-none rounded-md border border-border bg-surface py-1.5 pr-9 pl-4 text-sm font-medium shadow-card` + `ChevronDown size-4 text-text-secondary` at `right-3`; first (match filter) `text-text-primary`, second (sort) `text-text-dark`, as in the design |
+| Table | `table-fixed min-w-[860px]` in an `overflow-x-auto` wrapper; column widths 22.4 / 22.5 / 22.5 / 17.4 / 15.2 %; `thead` `bg-surface-secondary border-b border-border`; header `h-12 px-6 text-xs font-medium tracking-wider uppercase text-text-secondary` (Match Score centred, first column `pl-11`) |
+| Row | `h-16` cells `px-6`, `border-b border-border last:border-b-0 hover:bg-surface-secondary`; company `font-semibold text-text-primary`, role and salary `font-medium text-text-dark`, date `text-text-secondary` |
+| Company tile | `size-8 rounded-md border border-border bg-surface-tertiary` with `Building2 size-4 text-text-secondary`, `gap-3` to the name |
+| Match score bar | SVG `h-1.5 w-24`, track `fill-border-light`, fill `fill-success-alt` (90+) / `fill-info-medium` (80 to 89) / `fill-warning` (below 80); percentage `w-9 text-sm font-semibold tabular-nums`, `gap-2` |
+| Pagination footer | `border-t border-border bg-surface-secondary/50 px-6 py-4`; summary `text-sm text-text-secondary` with `font-semibold text-text-primary` numbers; buttons `h-8 min-w-8 rounded-md border border-border bg-surface px-3 text-sm font-medium text-text-dark shadow-card`, disabled `text-text-muted`, current page `border-accent-light bg-accent-muted text-accent`, ellipsis `text-text-muted`; `gap-2` |
+| Empty state | `px-6 py-16 text-center text-sm text-text-muted` |
+
+**Pattern notes:** the bar bands come from the design, not ui-rules.md or ui-tokens.md, which disagree (see progress-tracker). The score fill is an SVG `<rect width="94%">` so no inline style is needed. Mock data only: the search button, filters and pagination are not wired until features 10 and 11.

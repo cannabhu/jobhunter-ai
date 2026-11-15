@@ -44,12 +44,13 @@
 │   │   └── page.tsx                       → Main dashboard
 │   ├── (app)/                              → Route group for signed-in pages — shares AppNavbar
 │   │   ├── layout.tsx                     → AppNavbar + main
-│   │   └── profile/
-│   │       └── page.tsx                   → Profile form + resume management (URL is /profile) — reads getProfile()
-│   ├── find-jobs/
-│   │   ├── page.tsx                       → Find Jobs page — search controls + jobs list
-│   │   └── [id]/
-│   │       └── page.tsx                   → Individual job details page
+│   │   ├── profile/
+│   │   │   └── page.tsx                   → Profile form + resume management (URL is /profile) — reads getProfile()
+│   │   └── find-jobs/
+│   │       ├── page.tsx                   → Find Jobs page — search controls + jobs list (feature 09: mock data from mockJobs.ts)
+│   │       ├── mockJobs.ts                → Placeholder rows/paging for feature 09 — deleted when features 10 and 11 land
+│   │       └── [id]/
+│   │           └── page.tsx               → Individual job details page
 │   └── api/
 │       ├── auth/
 │       │   ├── callback/route.ts          → OAuth callback — exchanges insforge_code for a session
@@ -104,10 +105,12 @@
 │   │   │   WorkExperienceCard.tsx / EducationSection.tsx / JobPreferencesSection.tsx
 │   │   └── ProfileSection.tsx, FormField.tsx, SelectInput.tsx, TagInput.tsx, fieldStyles.ts
 │   ├── find-jobs/
-│   │   ├── SearchControls.tsx
-│   │   ├── JobsTable.tsx
-│   │   ├── JobFilters.tsx
-│   │   └── JobsPagination.tsx
+│   │   ├── SearchControls.tsx             → Search card: job title, location, Find Jobs, result banner
+│   │   ├── JobFilters.tsx                 → Filter bar: text filter + FilterSelect dropdowns
+│   │   ├── FilterSelect.tsx               → Styled native select used by JobFilters
+│   │   ├── JobsTable.tsx                  → Jobs table (+ empty state)
+│   │   ├── MatchScoreBar.tsx              → Colour coded score bar + percentage (SVG, no inline style)
+│   │   └── JobsPagination.tsx             → "Showing x to y of z" + page buttons
 │   └── job-details/
 │       ├── JobInfo.tsx
 │       ├── MatchScore.tsx
