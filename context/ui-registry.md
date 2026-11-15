@@ -241,4 +241,15 @@ Built from `context/designs/find-jobs.png` (sampled colours, 1440px frame). Page
 | Pagination footer | `border-t border-border bg-surface-secondary/50 px-6 py-4`; summary `text-sm text-text-secondary` with `font-semibold text-text-primary` numbers; buttons `h-8 min-w-8 rounded-md border border-border bg-surface px-3 text-sm font-medium text-text-dark shadow-card`, disabled `text-text-muted`, current page `border-accent-light bg-accent-muted text-accent`, ellipsis `text-text-muted`; `gap-2` |
 | Empty state | `px-6 py-16 text-center text-sm text-text-muted` |
 
-**Pattern notes:** the bar bands come from the design, not ui-rules.md or ui-tokens.md, which disagree (see progress-tracker). The score fill is an SVG `<rect width="94%">` so no inline style is needed. Mock data only: the search button, filters and pagination are not wired until features 10 and 11.
+**Pattern notes:** the bar bands come from the design, not ui-rules.md or ui-tokens.md, which disagree (see progress-tracker). The score fill is an SVG `<rect width="94%">` so no inline style is needed.
+
+**Feature 10 additions (search wired, real jobs):** `SearchControls` is now a client component with a `<form onSubmit>`; the filter input, both selects and the pagination buttons are still not wired (feature 11).
+
+| Part | Class |
+| --- | --- |
+| Find Jobs button, loading | same purple primary, `disabled:cursor-not-allowed disabled:opacity-70`; icon swaps to `LoaderCircle size-4 animate-spin`, label "Searching..."; both inputs are disabled while searching |
+| Progress line | `role="status" mt-4 text-sm text-text-secondary` ("Searching and scoring jobs against your profile. This can take up to a minute.") |
+| Result banner | unchanged, but `min-h-11 py-2` instead of a fixed `h-11` so a long message (e.g. the zero-results text) can wrap |
+| Error | `role="alert" mt-4 text-sm text-error`; on a 422 (empty profile) it ends with a `font-medium underline underline-offset-2` link "Go to your profile" |
+| Adzuna credit | `border-t border-border px-6 py-3 text-xs text-text-muted` under the pagination bar, "Jobs by" + an underlined link to adzuna.com (`target="_blank" rel="noopener noreferrer"`), shown only when jobs are listed. **Not in the design**; added because Adzuna's terms and project-overview require attribution |
+| Empty state | `JobsTable` now shows "No jobs yet. Search above to find your first matches." for a user with no saved jobs |

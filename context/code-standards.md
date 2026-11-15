@@ -258,7 +258,7 @@ All environment variables defined in `.env.local` for development. Never hardcod
 | `BROWSERBASE_PROJECT_ID`        | lib/browserbase.ts     |
 | `OPENAI_API_KEY`                | agent/ functions       |
 | `ADZUNA_APP_ID`                 | lib/adzuna.ts          |
-| `ADZUNA_APP_KEY`                | lib/adzuna.ts          |
+| `ADZUNA_API_KEY`                | lib/adzuna.ts (Adzuna's `app_key`) |
 | `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` | instrumentation-client.ts, instrumentation.ts |
 | `NEXT_PUBLIC_POSTHOG_HOST`      | instrumentation-client.ts, instrumentation.ts |
 

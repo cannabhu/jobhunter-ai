@@ -152,7 +152,7 @@ export async function searchJobs(
 ): Promise<AdzunaJob[]> {
   const params = new URLSearchParams({
     app_id: process.env.ADZUNA_APP_ID!,
-    app_key: process.env.ADZUNA_APP_KEY!,
+    app_key: process.env.ADZUNA_API_KEY!,
     what: jobTitle,
     category: "it-jobs", // always filter to IT jobs
     results_per_page: "10",
@@ -207,13 +207,11 @@ const jobRecord = {
   run_id: runId,
   source: "search", // always 'search' for Adzuna jobs
   source_url: job.redirect_url,
-  external_apply_url: job.redirect_url,
+  // external_apply_url stays null: Adzuna's redirect_url is not a direct company link (see architecture.md)
   title: job.title,
   company: job.company.display_name,
   location: job.location.display_name,
-  salary: job.salary_min
-    ? `$${Math.round(job.salary_min / 1000)}k - $${Math.round(job.salary_max! / 1000)}k`
-    : null,
+  salary: formatSalary(job.salary_min, job.salary_max, country), // lib/adzuna.ts; salary_max can be missing
   job_type: job.contract_type || "fulltime",
   about_role: job.description, // Adzuna returns snippet — used as description
   match_score: scoredJob.matchScore,

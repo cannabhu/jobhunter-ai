@@ -47,8 +47,7 @@
 │   │   ├── profile/
 │   │   │   └── page.tsx                   → Profile form + resume management (URL is /profile) — reads getProfile()
 │   │   └── find-jobs/
-│   │       ├── page.tsx                   → Find Jobs page — search controls + jobs list (feature 09: mock data from mockJobs.ts)
-│   │       ├── mockJobs.ts                → Placeholder rows/paging for feature 09 — deleted when features 10 and 11 land
+│   │       ├── page.tsx                   → Find Jobs page — search controls + the user's saved jobs (newest 20 + count; filters/paging are feature 11)
 │   │       └── [id]/
 │   │           └── page.tsx               → Individual job details page
 │   └── api/
@@ -65,9 +64,9 @@
 │       │   ├── generate/route.ts          → Generate base resume PDF from profile
 │       │   └── extract/route.ts           → Extract profile data from uploaded resume PDF
 ├── agent/
-│   ├── adzuna.ts                          → Adzuna API job discovery + GPT-4o scoring
+│   ├── adzuna.ts                          → discoverJobs(): search Adzuna, skip already-saved jobs, score the new ones, insert (feature 10)
 │   ├── research.ts                        → Company research — Browserbase + Stagehand + GPT-4o
-│   ├── matcher.ts                         → GPT-4o job matching logic
+│   ├── matcher.ts                         → scoreJob(): one GPT-4o call per job against the saved profile (feature 10)
 │   ├── resumeExtractor.ts                 → GPT-4o resume text → form-shaped profile data (feature 07)
 │   ├── resumeWriter.ts                    → GPT-4o profile → resume summary + role bullets (feature 08)
 │   ├── extractor.ts                       → GPT-4o job description extraction + structuring
@@ -122,10 +121,16 @@
 │   │   ├── client.ts                      → InsForge browser client instance
 │   │   ├── server.ts                      → InsForge server client + getUser()
 │   │   ├── profile.ts                     → getProfile() — reads the profiles row, creating it on first use
+│   │   ├── jobs.ts                        → getSavedJobScores() (repeat-search lookup) and listJobs() (Find Jobs page)
+│   │   ├── agentLogs.ts                   → logAgent(): one line to agent_logs, never throws
 │   │   └── resumeStorage.ts               → downloadResume(): reads the private resume with retries and real-error logging (file, extract and generate routes)
 │   ├── browserbase.ts                     → Browserbase session creation + management
 │   ├── stagehand.ts                       → Stagehand initialisation with Browserbase session
-│   ├── adzuna.ts                          → Adzuna API client
+│   ├── adzuna.ts                          → Adzuna client: searchJobs(), detectCountry(), formatSalary(), toJobType()
+│   ├── jobScoring.ts                      → normalizeJobScore(): untrusted GPT-4o JSON → safe JobScore
+│   ├── findJobs.ts / findJobsSchema.ts / findJobsMessage.ts → Find Jobs path + limits, zod body schema, banner text
+│   ├── relativeTime.ts                    → formatFoundLabel(): "2 hours ago" / "Yesterday"
+│   ├── pagination.ts                      → buildPageItems(): page buttons for the jobs pagination
 │   ├── profileSchema.ts                   → zod validation of the profile FormData
 │   ├── profileConstants.ts                → Limits and allowed enum values shared by Save validation and resume extraction
 │   ├── profileFormData.ts                 → Zod-free FormData readers (readFormValues), splitList/joinList — safe for client code
@@ -139,8 +144,8 @@
 │   ├── resume.ts                          → Resume size limit, route paths, extraction limits shared by client and server
 │   ├── rateLimit.ts                       → In-memory per-user sliding-window limiter for paid API routes
 │   ├── routes.ts                          → SIGNED_IN_HOME — post-login destination + homepage CTA (one place to flip to /dashboard)
-│   ├── posthog-server.ts                  → PostHog server client (planned — add with the first server-side event)
-│   └── utils.ts                           → Shared utility functions
+│   ├── posthog-server.ts                  → PostHog server client (job_search_started, job_found); shut down in the same function
+│   └── utils.ts                           → MATCH_THRESHOLD (70)
 └── types/
     └── index.ts                           → Global TypeScript types
 ```
@@ -390,7 +395,7 @@ const session = await bb.sessions.create({
 const response = await fetch(
   `https://api.adzuna.com/v1/api/jobs/us/search/1?` +
     `app_id=${process.env.ADZUNA_APP_ID}&` +
-    `app_key=${process.env.ADZUNA_APP_KEY}&` +
+    `app_key=${process.env.ADZUNA_API_KEY}&` +
     `what=${encodeURIComponent(jobTitle)}&` +
     `where=${encodeURIComponent(location)}&` +
     `category=it-jobs&` +
