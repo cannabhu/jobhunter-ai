@@ -327,7 +327,7 @@ The bucket is **private**. Browsers cannot open its storage URLs, so the file is
 - Protected routes: /dashboard, /profile, /find-jobs, /find-jobs/[id]
 - Also protected: /sign-out
 - Public routes: /, /login
-- `proxy.ts` (Next 16's replacement for middleware.ts) refreshes the session and redirects signed-out users away from protected routes
+- `proxy.ts` (Next 16's replacement for middleware.ts) refreshes the session and redirects signed-out users away from protected routes. It runs on pages **and on every `/api` route except `/api/auth/*`**: the access-token cookie expires with its token, so a route handler can only call `getUser()` successfully if the proxy refreshed the cookie first. Any new `app/api/` route needs no extra session handling, but must not be added under `/api/auth/`
 - Pages must still verify the user with `getUser()` — the proxy only checks that a valid-looking token cookie exists
 - On login → redirect to `SIGNED_IN_HOME` (`lib/routes.ts`) — /profile until the dashboard exists (feature 14), then /dashboard
 

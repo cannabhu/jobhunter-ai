@@ -127,6 +127,8 @@ export async function POST(req: NextRequest) {
 - Errors are logged with the route path as prefix: `[agent/find]`
 - Always return `{ success: boolean, data?: T, error?: string }`
 - Never return raw data without the success wrapper
+- Session refresh for API routes comes from `proxy.ts` (it covers all of `/api` except `/api/auth/*`) — call `getUser()` and return 401 JSON if it is null
+- A GET route that a browser opens directly (e.g. a file View link) redirects to `/login?error=session` on a null user instead of returning JSON
 
 ---
 
