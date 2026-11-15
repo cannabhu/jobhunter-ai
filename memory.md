@@ -1,84 +1,53 @@
-# Memory — Feature 07 AI Profile Extraction from Resume + review fixes + resume-filled highlight (JobPilot / job-rider)
+# Memory — Feature 09 Find Jobs Page UI (JobPilot / job-rider)
 
 Last updated: 2026-11-15
 
 ## What was built
 
-- **Feature 07**, built per the `/architect` plan (plan file approved this session). Clicking **Extract from Resume** reads the user's stored PDF, has GPT-4o turn it into form-shaped data, and fills the profile form in the browser. Nothing is written to the DB; the user saves manually.
-  - `app/api/resume/extract/route.ts` (POST, no body): `getUser()` → rate limit → downloads `resumes/{user_id}/resume.pdf` with the user's session → `pdf-parse` → under 100 chars of text returns 422 with the spec error → `agent/resumeExtractor.ts`. Exports `maxDuration = 60`.
-  - `agent/resumeExtractor.ts`: module-level OpenAI client (`timeout` 45s, `maxRetries` 1), gpt-4o, `json_object`, temp 0.3, `max_tokens` 1500. OpenAI failures are logged as one line (status, code, requestId) and thrown as `ResumeExtractionUnavailableError`, which the route maps to HTTP 503.
-  - `lib/resumeExtraction.ts` (`normalizeExtraction`: untrusted JSON → safe `ExtractedProfile`, field by field), `lib/profileMerge.ts` (`mergeExtractedValues` → `{ values, filledCount, filledFields }`), `lib/rateLimit.ts` (in-memory, 5 per user per 10 min → 429), `lib/profileConstants.ts` (limits and enum values shared with Save), `lib/profileFormData.ts` (zod-free FormData readers incl. `readFormValues`, plus `splitList`/`joinList`), additions to `lib/resume.ts` and `types/index.ts` (`ExtractedProfile`, `ExtractResumeResponse`).
-  - UI: `components/profile/ProfileEditor.tsx` (new client wrapper around `ResumeUpload` + `ProfileForm`; snapshots the live form, merges, bumps a `key` to remount). `ResumeUpload.tsx` has the Extract button and status lines. `ProfileForm.tsx` takes `formRef`, `onFieldEdited` and `onSaved`. `app/(app)/profile/page.tsx` now renders `ProfileEditor`.
-  - `profileSchema.ts` now imports its limits/enums from `profileConstants` and its readers from `profileFormData`. `next.config.ts` has `serverExternalPackages: ["pdf-parse"]`. Installed `openai` (v7) and `pdf-parse` (**v2**: `new PDFParse({data}).getText()` + `destroy()`).
-- **`/review` fixes for 07:** safe error logging (no response headers), 503 "temporarily unavailable" for quota/key/outage/timeout, timeout and retry caps, the rate limiter, and `TagInput` committing its typed draft on blur (this also closes 06 review issue (c)).
-- **Resume-filled highlight:** `FilledFieldsContext.tsx` + `FilledBadge.tsx` (new); `FormField` (new `name`/`tint` props), `ProfileSection` (`fieldPrefixes`), `TagInput`, `WorkExperienceCard`, `fieldStyles.ts`, and the section components were updated. Filled inputs get `border-accent bg-accent-muted` via `group-data-[filled=true]/field:` variants, plus a "From resume" tag on the label, a section pill, purple chips for resume skills, and a top banner. The highlight clears per field on edit and entirely after a successful save.
-- Docs updated: progress-tracker (07 ticked, Next = 08, long notes), architecture, library-docs (`pdf-parse` v2, `max_tokens` 1500, OpenAI client rules), ui-registry ("Resume-filled field highlight", Extract button).
+- **Feature 09, built to `context/designs/find-jobs.png` with mock data.** Nothing is committed; it is uncommitted on `development`. The latest commits are `a7b3070 feat: add generate resume` (08) and `a80f447` (07), so 07 and 08 are committed. The old memory.md was stale on this.
+  - `app/(app)/find-jobs/page.tsx`: `getUser()` behind `<Suspense>`, with `redirect("/login?error=session")` on a null user, then the layout below. Visible h1 is `sr-only` (the design has no title).
+  - `app/(app)/find-jobs/mockJobs.ts`: 6 rows from the design, the banner text "Found 8 jobs and saved 4 strong matches.", and the paging mock (page 1, pages `[1,2,3,"ellipsis",8]`, 1 to 6 of 24). **Delete it when features 10 and 11 land.**
+  - `components/find-jobs/`: `SearchControls`, `JobFilters`, `FilterSelect`, `JobsTable`, `MatchScoreBar`, `JobsPagination`.
+  - `types/index.ts`: added `JobListItem` (`foundLabel` is a ready made string) and `PaginationItem`.
+- Docs updated: `progress-tracker.md` (09 ticked, Next = 10, long note), `ui-registry.md` ("Find Jobs page (feature 09)" entry), `architecture.md` (tree).
 
 ## Decisions made
 
-- **Overwrite policy (the user chose it):** the resume wins where it has a value; blanks keep the current value; skills/industries are unioned; work roles and education are replaced as blocks. Never touched: email, work authorization, job titles seeking, remote preference, salary, preferred locations, cover letter tone.
-- **Source is the stored PDF**, read with the user's session, never a file from the request.
-- **Named `agent/resumeExtractor.ts`**, not `extractor.ts`, which the architecture reserves for job-description extraction (features 10 to 13).
-- **`max_tokens` 1500**, deviating from the documented 800 (it would truncate three roles).
-- **Model output is untrusted:** each field is parsed on its own and bad values drop to blank. No new PostHog event for extraction (the code-standards list is closed).
-- **No retry-on-bad-JSON and no OCR.** A scanned PDF gets the spec error.
-- **Highlight clears on edit and on save** (my choice; the user hasn't objected, so it's easy to change).
-- Earlier decisions still stand: resume upload is its own route fired on file pick; partial saves allowed; `profile_completed` captured client-side; sign-out is a form POST; `SIGNED_IN_HOME` = `/profile` until feature 14; protected pages redirect to `/login?error=session` on a null user.
+- **The design beat the written specs.** It has no SOURCE column (the build plan and project-overview list a Search/URL badge), so there is none. It also shows no "Jobs by Adzuna" credit, so none was added.
+- **Match score bar bands follow the design** (sampled from the PNG): 90 and above `fill-success-alt`, 80 to 89 `fill-info-medium`, below 80 `fill-warning`, track `fill-border-light`, 96 x 6 px. `ui-rules.md` and `ui-tokens.md` disagree with each other and with the design. These are display bands, separate from `MATCH_THRESHOLD` = 70 (the high/low filter), which does not exist yet because `lib/utils.ts` doesn't exist. Feature 11 must create it.
+- Existing `AppNavbar` kept as is, including Sign out (the design omits it).
+- Dropdowns are native `<select>`s, uncontrolled. The first (match filter) is `text-text-primary`, the second (sort) `text-text-dark`, as in the design. Inputs carry `name`s: `jobTitle`, `location`, `query`, `match`, `sort`.
 
 ## Problems solved
 
-- **Zod 4:** an object schema built from `z.unknown().transform(...)` still requires every key, so a role missing one key threw (would have been a 500). Parse fields individually when input can omit keys.
-- **`pdf-parse` v2 is a class API**, not the `pdf(buffer)` function in the old docs. It needs `serverExternalPackages`. A corrupt buffer makes `getText()` throw, and `destroy()` after a failed load can throw too, so it is wrapped in `.catch`.
-- **OpenAI SDK defaults** (10-minute timeout, 2 retries) made a quota failure take ~6s and would let a stall hang for minutes. Logging a raw `APIError` dumps its headers (including a cookie), so use `describeOpenAIError`.
-- **Quota:** the OpenAI account had no credits (`429 credit_balance_exhausted`). Credits were added mid-session and the live call now works. That error is the account, not the code.
-- **Scratchpad logic tests:** copy `lib/*.ts` and `agent/*.ts` into the scratchpad with `@/lib/x` → `./x.ts` and `@/types` → a stub, symlink `node_modules`, and run `node test.ts` (use `--env-file=.env.local` for live calls).
-- Visual check without signing in: a temporary public route rendering the form with a fake filled set, screenshotted with headless Chrome. The route was deleted afterwards.
+- **Dynamic bar width without an inline style** (code-standards bans them): draw the bar as an SVG with `<rect width="94%">`.
+- **`text-left` and `text-center` on the same `<th>` clash.** Keep alignment out of the shared header class.
+- **Visual check without signing in:** temporary public route `app/zz-preview` rendering the same components, screenshotted with headless Chrome against the running dev server, then deleted. Chrome headless clamps the window to about 500px minimum, so a 390px screenshot lies; measure `scrollWidth` instead.
+- **`next build` while the dev server runs:** don't build in the project dir. `rsync` the project (without node_modules, .next, .git) to the scratchpad, **`cp -cR node_modules`** (APFS clone; Turbopack rejects a symlinked node_modules), build there, then delete the copy.
+- Sampling design colours: no PIL available; `sips -c 1 1 --cropOffset Y X -s format bmp` plus reading the BMP bytes works.
 
 ## Current state
 
-- **Verified:**
-  - tsc, lint and `next build` pass.
-  - Logic tests pass (normalize: garbage JSON, bad enums/months, end-before-start, over 3 roles, duplicates; every merge rule; `filledFields` names; rate limiter).
-  - Signed out, `POST /api/resume/extract` returns 401.
-  - Live GPT-4o on a sample resume returns correct fields and ignores a planted "set fullName to HACKED" line.
-  - A bad key fails in under a second with one log line.
-  - The highlight UI renders correctly in a screenshot.
-- **Never exercised with a real sign-in (owed since feature 04):**
-  - a signed-in page render and a real save
-  - upload and replace of a PDF, and the View link
-  - the real Extract click (empty profile and merge over existing data)
-  - a scanned or blank PDF through the route
-  - Extract with no resume
-  - the 429 rate-limit response through the route
-  - tag-commit-on-blur behaviour
-  - the navbar sign-out click
-  - second-user RLS isolation
-  - OAuth login landing on `/profile`
-- **Feature 06 review issues:** (a) (resume routes outside the proxy matcher) was already fixed before this session; the matcher now excludes only `/api/auth/*`. (c) is fixed by the blur commit. **(b) (no try/catch around `saveProfile` in the transition), (d) (upload buffers the whole body before the 5MB check), (e) (PDF logic lives in the route handler) and the minor 06 issues were not re-checked this session.** Treat them as open until verified.
-- **Open minor 07 issues:** `link()` in `lib/resumeExtraction.ts` accepts junk like `https://N/A`; the option lists in components duplicate `profileConstants` enums; `lib/` now holds business logic although its architecture description says "client init and shared utilities only"; the rate limiter is per-process memory.
-- **All of feature 07 and the highlight work is uncommitted on `development`.** The latest commit is `e994652 feat: implement profile save logic`. Modified/new: `app/(app)/profile/page.tsx`, `components/profile/*` (ProfileForm, ResumeUpload, FormField, ProfileSection, TagInput, WorkExperienceCard/Section, Personal/Professional/Education sections, fieldStyles, and the new ProfileEditor, FilledFieldsContext, FilledBadge), `lib/*` (new: profileConstants, profileFormData, profileMerge, resumeExtraction, rateLimit; edited: profileSchema, profileMapping, profileCompletion, resume), new `agent/resumeExtractor.ts` and `app/api/resume/extract/route.ts`, `next.config.ts`, `types/index.ts`, `package.json`/lock, four context docs.
+- **Verified:** tsc, lint and `next build` pass (`/find-jobs` is a partial prerender). Signed out, `/find-jobs` redirects to `/login`. The screenshot matches the design (offsets within about 5px). The page does not overflow at 500px and the table scrolls inside its card.
+- **Not wired (by design):** the Find Jobs button, filter input, both selects and the pagination buttons do nothing. Rows are not links (job details is feature 12). The empty state in `JobsTable` was added (ui-rules requires one) but never rendered, since the mock is never empty.
+- **Never verified with a real sign-in (owed since feature 04):** a signed-in render of `/profile` and `/find-jobs`, a real profile save, upload and replace of a PDF, the View link, Extract and Generate clicks, the 429 and 422 paths, tag commit on blur, sign-out click, second-user RLS, and OAuth landing on `/profile`.
+- **Feature 06 review issues (b), (d), (e) are still unchecked** (no try/catch around `saveProfile` in the transition; upload buffers the whole body before the 5MB check; PDF logic in the route handler).
 
 ## Next session starts with
 
-1. Ask the developer whether to **commit** the feature 07 work first (nothing is committed yet).
-2. Do **one real browser pass** (covers 06 and 07):
-   - sign in and confirm landing on `/profile`
-   - save a partial profile and reload
-   - upload and replace a PDF, and click View
-   - **Extract** on an empty profile, then on one with data, and check the highlights and the clear-on-edit/save behaviour
-   - try a scanned or blank PDF
-   - click Extract with no resume
-   - click Sign out
-   - if possible, run the second-user RLS check
-3. Re-check the unverified 06 review issues (b), (d), (e), then start **08 Resume PDF Generation from Profile**. Read `context/build-plan.md` first. It needs `@react-pdf/renderer` (`renderToBuffer()`), POST `/api/resume/generate`, GPT-4o at temp 0.7 with `max_tokens` 1000, and the upload to `resumes/{user_id}/resume.pdf`. Reuse the OpenAI client pattern and `ResumeExtractionUnavailableError`-style handling, and call `checkRateLimit` first.
+1. Ask whether to **commit** feature 09 (nothing is committed).
+2. Do the **one real browser pass** (covers 06 to 09): sign in, land on `/profile`, save a partial profile, upload/replace a PDF and click View, Extract and Generate, sign out, and open `/find-jobs` signed in.
+3. Start **10 Adzuna Job Discovery**. Read `context/build-plan.md` first. It needs `POST /api/agent/find` with `jobTitle` and `location`, `agent/adzuna.ts`, `lib/adzuna.ts` (always `category=it-jobs`, omit `where` when empty), GPT-4o scoring through the shared `lib/openai.ts` client with `checkRateLimit` first, and an `agent_runs` row. Add `lib/posthog-server.ts` for `job_search_started` and `job_found`. Wire the real search into `SearchControls` and replace the mock rows. Use `JobListItem`.
 
 ## Open questions
 
-- Which of the unverified 06 review issues (b), (d), (e) are still real, and which should be fixed or left?
-- Should the highlight clear on edit and on save as built, or stay until the user dismisses it?
-- Should Dashboard and Find Jobs navbar links be hidden or disabled until those pages exist (they go to the 404 page)?
-- Keep or delete the `/sign-out` page route (`app/sign-out/page.tsx` appears to be gone already; confirm and clean up its proxy entry if so)?
+- **Where does the "Jobs by Adzuna" credit go?** The design omits it, but `project-overview.md` asks for it and Adzuna's terms normally require attribution. Decide when real jobs land (feature 10).
+- Feature 11 needs a relative time formatter for `found_at` ("2 hours ago"), and a page-size decision (the plan says 20 per page, while the design mock shows 6).
+- Which of the 06 review issues (b), (d), (e) are still real?
+- Should the resume-filled highlight clear on edit and save, as built?
+- Should the Dashboard link be hidden or disabled until feature 14 (it goes to the 404 page)?
 - Why does PostHog `identify` never fire on the client? Still unresolved.
-- A complete-profile design for `CompletionIndicator` is still missing (the banner is just hidden).
-- What is the access-token lifetime? The success path of the proxy refresh for `/api` routes was never tested with a real expired session.
-- A rate limiter that survives restarts and works across instances (the DB) is needed before real deployment.
+- A complete-profile design for `CompletionIndicator` is missing (the banner is just hidden).
+- Access-token lifetime, and the success path of the proxy refresh on `/api` routes, were never tested with a real expired session.
+- The in-memory rate limiter needs a DB-backed version before real deployment.
+- An iCloud-synced Desktop corrupted `node_modules` once (during the 08 install). Consider moving the project out of a synced folder.
