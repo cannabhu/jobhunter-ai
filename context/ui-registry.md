@@ -253,3 +253,15 @@ Built from `context/designs/find-jobs.png` (sampled colours, 1440px frame). Page
 | Error | `role="alert" mt-4 text-sm text-error`; on a 422 (empty profile) it ends with a `font-medium underline underline-offset-2` link "Go to your profile" |
 | Adzuna credit | `border-t border-border px-6 py-3 text-xs text-text-muted` under the pagination bar, "Jobs by" + an underlined link to adzuna.com (`target="_blank" rel="noopener noreferrer"`), shown only when jobs are listed. **Not in the design**; added because Adzuna's terms and project-overview require attribution |
 | Empty state | `JobsTable` now shows "No jobs yet. Search above to find your first matches." for a user with no saved jobs |
+
+**Feature 11 additions (filter, sort and paging wired):** no new visual patterns, only behaviour and two small states. State lives in the URL (`?q=&match=&sort=&page=`).
+
+| Part | Class / behaviour |
+| --- | --- |
+| Filter bar | unchanged classes. `JobFilters` is now a client component with `aria-busy` while the list reloads; the text input has `maxLength` 100 and applies 300ms after the last keystroke, both selects apply at once |
+| Filter select | `FilterSelect` is now controlled (`value` + `onChange`); same classes |
+| Pagination buttons | now `next/link` `<Link>`s with the same classes (`inline-flex h-8 min-w-8 items-center justify-center rounded-md border px-3 text-sm font-medium shadow-card`, `border-border bg-surface text-text-dark hover:bg-surface-secondary`). Current page `border-accent-light bg-accent-muted text-accent` with `aria-current="page"`. First/last page buttons are a `<span aria-disabled="true">` with `cursor-not-allowed text-text-muted` instead of a disabled button. `prefetch={false}` |
+| Page window | `1 2 3 … last` near the start (the design), `1 … last-2 last-1 last` near the end, `1 … n-1 n n+1 … last` in the middle; all pages when there are 4 or fewer |
+| Empty, filtered | `px-6 py-16 text-center text-sm text-text-muted`: "No jobs match your filters." and a "Clear filters" link `mt-2 inline-block font-medium text-accent hover:text-accent-dark`. The "No jobs yet…" text is kept for a user with no saved jobs |
+
+**Pattern notes:** the pagination footer, "Showing x to y of z" text and the Adzuna credit are unchanged; the credit still shows whenever the current page has jobs. Default sort is Match Score (the design's default).

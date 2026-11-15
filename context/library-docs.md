@@ -105,6 +105,14 @@ const { error } = await insforge
 - Always handle the `error` return — never assume success
 - Use `.single()` when expecting exactly one row
 
+**Filtering, sorting and paging (feature 11, probed against the live API):**
+
+- `database.from()` is `@supabase/postgrest-js`, so `.or()`, `.not()`, `.range()` and `select(..., { count: "exact" })` all work, although the InsForge docs list only the simple filters. There is **no `.and()`** on the builder.
+- **One `.or()` per query.** A second `.or()` fails to parse (400 `PGRST100`). Put the OR you need in the single call and express any other condition with a plain filter such as `.lt()` or `.gte()`.
+- **Escaping user text in `.or()`:** escape `\`, `%` and `_` for LIKE, wrap the whole pattern in double quotes, and escape `"` and `\` inside the quotes. An unquoted comma or parenthesis breaks the filter (`buildTextSearchFilter` in `lib/jobsQuery.ts`).
+- **A `.range()` past the last row returns a 416 error (`error.code === "PGRST103"`), not an empty array.** Catch it and fall back to the last page.
+- `order("col", { ascending: false })` puts NULLs first; pass `nullsFirst: false`. Add a final `.order("id")` when paging so ties can't reorder between pages.
+
 ---
 
 ### Storage

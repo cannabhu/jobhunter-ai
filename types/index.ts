@@ -132,10 +132,28 @@ export type FindJobsResult = {
 /** Response of `POST /api/agent/find`. */
 export type FindJobsResponse = { success: true; data: FindJobsResult } | { success: false; error: string };
 
-/** A page of saved jobs for the Find Jobs table. */
+/** Which saved jobs the Find Jobs table shows, by score against `MATCH_THRESHOLD`. */
+export type MatchFilter = "all" | "high" | "low";
+
+/** How the Find Jobs table is ordered. */
+export type JobSort = "match" | "newest" | "oldest";
+
+/** The Find Jobs filter, sort and page, as kept in the URL (`q`, `match`, `sort`, `page`). */
+export type JobsQuery = {
+  /** Case-insensitive text matched against company and title; empty means no text filter. */
+  query: string;
+  match: MatchFilter;
+  sort: JobSort;
+  /** 1-based. */
+  page: number;
+};
+
+/** A page of saved jobs for the Find Jobs table. `total` counts every job matching the filters, not just this page. */
 export type JobListPage = {
   jobs: JobListItem[];
   total: number;
+  /** The page actually returned: the requested one, or the last page when it asked for one past the end. */
+  page: number;
 };
 
 /** A page button in the jobs pagination; `ellipsis` stands for the skipped pages. */

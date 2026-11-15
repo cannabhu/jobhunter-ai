@@ -7,33 +7,39 @@ import { JobsTable } from "@/components/find-jobs/JobsTable";
 import { SearchControls } from "@/components/find-jobs/SearchControls";
 import { JOBS_PAGE_SIZE, listJobs } from "@/lib/insforge/jobs";
 import { createInsforgeServer, getUser } from "@/lib/insforge/server";
+import { hasActiveFilters, parseJobsQuery } from "@/lib/jobsQuery";
 import { buildPageItems } from "@/lib/pagination";
 
 export const metadata: Metadata = {
   title: "Find Jobs — JobPilot",
 };
 
-async function FindJobsContent() {
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+async function FindJobsContent({ searchParams }: { searchParams: SearchParams }) {
   const user = await getUser();
   if (!user) redirect("/login?error=session");
 
+  const query = parseJobsQuery(await searchParams);
   const insforge = await createInsforgeServer();
-  const { jobs, total } = await listJobs(insforge, user.id);
+  const { jobs, total, page } = await listJobs(insforge, user.id, query);
+  const firstRow = (page - 1) * JOBS_PAGE_SIZE + 1;
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="sr-only">Find Jobs</h1>
       <SearchControls />
-      <JobFilters />
+      <JobFilters query={query} />
       <section aria-label="Jobs" className="overflow-hidden rounded-xl border border-border bg-surface shadow-card">
-        <JobsTable jobs={jobs} />
+        <JobsTable jobs={jobs} filtered={hasActiveFilters(query)} />
         {jobs.length > 0 ? (
           <>
             <JobsPagination
-              currentPage={1}
-              pages={buildPageItems(Math.ceil(total / JOBS_PAGE_SIZE))}
-              from={1}
-              to={jobs.length}
+              query={query}
+              currentPage={page}
+              pages={buildPageItems(Math.ceil(total / JOBS_PAGE_SIZE), page)}
+              from={firstRow}
+              to={firstRow + jobs.length - 1}
               total={total}
             />
             <p className="border-t border-border px-6 py-3 text-xs text-text-muted">
@@ -49,11 +55,11 @@ async function FindJobsContent() {
   );
 }
 
-export default function FindJobsPage() {
+export default function FindJobsPage({ searchParams }: { searchParams: SearchParams }) {
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 py-8 sm:px-6 lg:px-14">
       <Suspense fallback={null}>
-        <FindJobsContent />
+        <FindJobsContent searchParams={searchParams} />
       </Suspense>
     </div>
   );
