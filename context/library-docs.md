@@ -133,6 +133,7 @@ const { data: blob, error } = await insforge.storage
 - Re-uploading to the same key replaces the file — no `upsert` flag exists
 - `profiles.resume_pdf_url` stores the URL `upload()` returns, but only as a "resume exists" marker
 - Never write files to disk — upload the File/Blob (or a buffer wrapped in a Blob) directly
+- Read the resume through `downloadResume()` (`lib/insforge/resumeStorage.ts`), never `storage.download()` directly. A download is two steps (signed link, then a fetch of it) and the fetch can fail briefly right after an object is replaced; the helper retries, logs the real status and code on every failed attempt, and returns the final status. Routes map **404 → "not found"** and anything else → **502 "try again"**, so a storage failure is never reported as a missing file
 
 ---
 
@@ -510,13 +511,13 @@ const result = JSON.parse(response.choices[0].message.content!);
 
 - Job matching + scoring: `300`
 - Company research synthesis: `800`
-- Resume generation: `1000`
+- Resume generation: `1000` (the model returns only a summary and short bullets; the PDF facts come from the DB)
 - Profile extraction from resume: `1500` (800 truncates the JSON for a resume with three roles)
 
 **Rules:**
 
 - Model string is always `'gpt-4o'` — never use other model names
-- Create the client once at module level with `timeout: 45_000` and `maxRetries: 1`. The SDK defaults (10 minutes, 2 retries) leave the UI spinning and delay quota/auth failures
+- Use the shared client from `lib/openai.ts` (module level, `timeout: 45_000`, `maxRetries: 1`); never construct another. The SDK defaults (10 minutes, 2 retries) leave the UI spinning and delay quota/auth failures
 - Catch `APIError` around every call and log `status`, `code` and `requestID` only — logging the error object dumps the response headers, including cookies. Throw a typed error so the route can return 503 instead of a generic 500
 - Every route that makes a paid model call checks `checkRateLimit` (`lib/rateLimit.ts`) after the session check and before any work
 - Always use `response_format: { type: 'json_object' }` for structured data
@@ -632,6 +633,14 @@ Only use these — others are silently ignored:
 - PDF generation only in `app/api/resume/` routes
 - Generated buffer uploaded directly to InsForge Storage — never written to disk
 - Always save the returned upload URL to `profiles.resume_pdf_url` after upload (a marker only — the bucket is private)
+
+**As built (feature 08, v4.9):**
+
+- The layout lives in `lib/resumeDocument.tsx` and the route calls `renderResumePdf(content)`. It calls the component as a plain function, because `renderToBuffer` is typed to take the `<Document>` element itself; passing `<ResumeDocument />` fails to type-check.
+- The buffer is wrapped as `new Blob([new Uint8Array(buffer)], { type: "application/pdf" })` for the upload.
+- No hex colors: a PDF has no CSS variables, so use named colors (`black`, `dimgray`).
+- Built-in Helvetica only (Latin characters). `letterSpacing`, `textTransform`, `borderBottomWidth` and `lineHeight` all work, so the "supported properties" list above is a minimum, not a ceiling. Set a `lineHeight` on any large text, otherwise it overlaps the line below.
+- To confirm one page, count `/Type /Page` objects in the buffer (`/Pages` is excluded by the `\b`); `pdf-parse`'s `getText().total` agrees.
 
 ---
 

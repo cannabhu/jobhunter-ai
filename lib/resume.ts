@@ -17,3 +17,19 @@ export const RESUME_UNREADABLE_ERROR = "Could not extract text from this PDF. Pl
 /** Each extraction is a paid GPT-4o call, so one user gets this many per window. */
 export const EXTRACT_LIMIT = 5;
 export const EXTRACT_WINDOW_MS = 10 * 60 * 1000;
+
+export const RESUME_GENERATE_PATH = "/api/resume/generate";
+
+/** Each generation is a paid GPT-4o call, so one user gets this many per window. */
+export const GENERATE_LIMIT = 5;
+export const GENERATE_WINDOW_MS = 10 * 60 * 1000;
+
+export const RESUME_NEEDS_DATA_ERROR = "Add your name and at least one work role, save, then try again.";
+
+/** Caps that keep the generated resume on one page. Content is trimmed to these, never shrunk to fit. */
+export const RESUME_LIMITS = {
+  summary: 450,
+  bulletsPerRole: 4,
+  bullet: 220,
+  skills: 35,
+} as const;

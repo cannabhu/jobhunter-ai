@@ -68,6 +68,7 @@
 │   ├── research.ts                        → Company research — Browserbase + Stagehand + GPT-4o
 │   ├── matcher.ts                         → GPT-4o job matching logic
 │   ├── resumeExtractor.ts                 → GPT-4o resume text → form-shaped profile data (feature 07)
+│   ├── resumeWriter.ts                    → GPT-4o profile → resume summary + role bullets (feature 08)
 │   ├── extractor.ts                       → GPT-4o job description extraction + structuring
 │   └── types.ts                           → Agent-specific TypeScript types
 ├── proxy.ts                                → Session refresh + protected-route redirects
@@ -117,14 +118,18 @@
 │   ├── insforge/
 │   │   ├── client.ts                      → InsForge browser client instance
 │   │   ├── server.ts                      → InsForge server client + getUser()
-│   │   └── profile.ts                     → getProfile() — reads the profiles row, creating it on first use
+│   │   ├── profile.ts                     → getProfile() — reads the profiles row, creating it on first use
+│   │   └── resumeStorage.ts               → downloadResume(): reads the private resume with retries and real-error logging (file, extract and generate routes)
 │   ├── browserbase.ts                     → Browserbase session creation + management
 │   ├── stagehand.ts                       → Stagehand initialisation with Browserbase session
 │   ├── adzuna.ts                          → Adzuna API client
 │   ├── profileSchema.ts                   → zod validation of the profile FormData
 │   ├── profileConstants.ts                → Limits and allowed enum values shared by Save validation and resume extraction
 │   ├── profileFormData.ts                 → Zod-free FormData readers (readFormValues), splitList/joinList — safe for client code
+│   ├── openai.ts                          → Shared OpenAI client (45s timeout, 1 retry) + describeOpenAIError
 │   ├── resumeExtraction.ts                → normalizeExtraction(): untrusted GPT-4o JSON → safe ExtractedProfile
+│   ├── resumeContent.ts                   → Resume content for the PDF: normalizeResumeWriting(), buildResumeContent(), trimResumeContent()
+│   ├── resumeDocument.tsx                 → @react-pdf/renderer layout + renderResumePdf() (server only, always one page)
 │   ├── profileMerge.ts                    → mergeExtractedValues(): lays resume data over the current form values
 │   ├── profileCompletion.ts               → Required fields → completion_percentage, missing_fields, is_complete
 │   ├── profileMapping.ts                  → profiles row ↔ form values / update payload

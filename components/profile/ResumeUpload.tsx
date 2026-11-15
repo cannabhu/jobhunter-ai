@@ -3,22 +3,31 @@
 import { CloudUpload, ExternalLink, FileText, LoaderCircle, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type DragEvent } from "react";
-import { MAX_RESUME_SIZE_BYTES, RESUME_EXTRACT_PATH, RESUME_FILE_PATH, RESUME_UPLOAD_PATH } from "@/lib/resume";
-import type { ExtractedProfile, ExtractResumeResponse } from "@/types";
+import {
+  MAX_RESUME_SIZE_BYTES,
+  RESUME_EXTRACT_PATH,
+  RESUME_FILE_PATH,
+  RESUME_GENERATE_PATH,
+  RESUME_UPLOAD_PATH,
+} from "@/lib/resume";
+import type { ExtractedProfile, ExtractResumeResponse, GenerateResumeResponse } from "@/types";
 
 const UPLOAD_FAILED = "We couldn't upload your resume. Please try again.";
 const EXTRACT_FAILED = "We couldn't read your resume. Please try again.";
+const GENERATE_FAILED = "We couldn't generate your resume. Please try again.";
 
 const readError = (body: unknown): string | null =>
   typeof body === "object" && body !== null && "error" in body && typeof body.error === "string" ? body.error : null;
 
 type Props = {
   hasResume: boolean;
+  /** True when the form differs from what is saved. Generate reads the saved profile, so those edits would be left out. */
+  hasUnsavedChanges: boolean;
   /** Puts extracted data into the form and returns how many fields it filled. */
   onExtracted: (extracted: ExtractedProfile) => number;
 };
 
-export function ResumeUpload({ hasResume, onExtracted }: Props) {
+export function ResumeUpload({ hasResume, hasUnsavedChanges, onExtracted }: Props) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploadingName, setUploadingName] = useState<string | null>(null);
@@ -27,11 +36,16 @@ export function ResumeUpload({ hasResume, onExtracted }: Props) {
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [filledCount, setFilledCount] = useState<number | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [confirmingReplace, setConfirmingReplace] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [generated, setGenerated] = useState(false);
   const uploading = uploadingName !== null;
-  const busy = uploading || extracting;
+  const busy = uploading || extracting || generating;
 
   const upload = async (file: File) => {
     setError(null);
+    setGenerated(false);
     setUploadingName(file.name);
     try {
       const body = new FormData();
@@ -70,6 +84,36 @@ export function ResumeUpload({ hasResume, onExtracted }: Props) {
     } finally {
       setExtracting(false);
     }
+  };
+
+  const generate = async () => {
+    setConfirmingReplace(false);
+    setGenerateError(null);
+    setGenerated(false);
+    setGenerating(true);
+    try {
+      const response = await fetch(RESUME_GENERATE_PATH, { method: "POST" });
+      const result: GenerateResumeResponse | null = await response.json().catch(() => null);
+      if (!result || !result.success) {
+        setGenerateError(result && !result.success ? result.error : GENERATE_FAILED);
+        return;
+      }
+      setGenerated(true);
+      router.refresh();
+    } catch (generationError) {
+      console.error("[ResumeUpload]", generationError);
+      setGenerateError(GENERATE_FAILED);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // A resume already on file is replaced, so ask first. With none on file there is nothing to lose.
+  const startGenerate = () => {
+    setGenerated(false);
+    setGenerateError(null);
+    if (hasResume) setConfirmingReplace(true);
+    else void generate();
   };
 
   const acceptFile = (candidate: File | undefined) => {
@@ -208,15 +252,72 @@ export function ResumeUpload({ hasResume, onExtracted }: Props) {
         </div>
       ) : null}
 
-      <div className="mt-6 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-text-secondary">Need a fresh document based on the fields below?</p>
-        <button
-          type="button"
-          className="flex items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground shadow-card hover:bg-accent-dark"
-        >
-          <FileText className="size-4" aria-hidden="true" />
-          Generate Resume from Profile
-        </button>
+      <div className="mt-6 border-t border-border pt-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-text-secondary">Need a fresh document based on the fields below?</p>
+          <button
+            type="button"
+            onClick={startGenerate}
+            disabled={busy || confirmingReplace}
+            aria-busy={generating}
+            className="flex shrink-0 items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground shadow-card hover:bg-accent-dark disabled:opacity-60"
+          >
+            {generating ? (
+              <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <FileText className="size-4" aria-hidden="true" />
+            )}
+            {generating ? "Generating…" : "Generate Resume from Profile"}
+          </button>
+        </div>
+
+        {confirmingReplace ? (
+          <div
+            role="alertdialog"
+            aria-label="Replace your current resume?"
+            className="mt-3 flex flex-col gap-3 rounded-md border border-border bg-surface-secondary px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <p className="text-sm text-text-primary">
+              <span className="font-semibold">This replaces your current resume.</span> The file on record is swapped for a new one built from your saved profile.
+            </p>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmingReplace(false)}
+                className="rounded-md border border-border bg-surface px-3.5 py-2 text-sm font-medium text-text-primary shadow-card hover:bg-surface-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void generate()}
+                className="rounded-md bg-accent px-3.5 py-2 text-sm font-medium text-accent-foreground shadow-card hover:bg-accent-dark"
+              >
+                Replace and generate
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {hasUnsavedChanges ? (
+          <p role="note" className="mt-3 rounded-md border border-border bg-surface-secondary px-4 py-3 text-sm text-text-secondary">
+            You have unsaved changes. The generated resume uses your saved profile, so click Save Profile first to include them.
+          </p>
+        ) : null}
+        {generateError ? (
+          <p role="alert" className="mt-3 text-sm text-error">
+            {generateError}
+          </p>
+        ) : null}
+        {generated ? (
+          <p role="status" className="mt-3 rounded-md border border-success-light bg-success-lightest px-4 py-3 text-sm font-medium text-success-foreground">
+            Your new resume is ready.{" "}
+            <a href={RESUME_FILE_PATH} target="_blank" rel="noreferrer" className="underline">
+              View it
+            </a>
+            .
+          </p>
+        ) : null}
       </div>
     </section>
   );
