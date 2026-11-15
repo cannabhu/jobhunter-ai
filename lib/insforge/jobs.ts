@@ -1,9 +1,10 @@
+import { normalizeDossier } from "@/lib/companyResearch";
 import type { createInsforgeServer } from "@/lib/insforge/server";
 import { parseJobType, safeHttpUrl } from "@/lib/jobDetails";
 import { buildTextSearchFilter } from "@/lib/jobsQuery";
 import { formatFoundLabel } from "@/lib/relativeTime";
 import { MATCH_THRESHOLD } from "@/lib/utils";
-import type { JobDetail, JobListPage, JobsQuery } from "@/types";
+import type { CompanyDossier, JobDetail, JobListPage, JobsQuery, ResearchJob } from "@/types";
 
 type InsforgeServer = Awaited<ReturnType<typeof createInsforgeServer>>;
 
@@ -137,6 +138,8 @@ type JobDetailRow = {
   missing_skills: string[] | null;
   source_url: string | null;
   found_at: string;
+  company_research: unknown;
+  researched_at: string | null;
 };
 
 /**
@@ -147,7 +150,7 @@ export async function getJobDetail(insforge: InsforgeServer, userId: string, job
   const { data, error } = await insforge.database
     .from("jobs")
     .select(
-      "id, title, company, location, salary, job_type, about_role, match_score, match_reason, matched_skills, missing_skills, source_url, found_at",
+      "id, title, company, location, salary, job_type, about_role, match_score, match_reason, matched_skills, missing_skills, source_url, found_at, company_research, researched_at",
     )
     .eq("id", jobId)
     .eq("user_id", userId)
@@ -171,5 +174,59 @@ export async function getJobDetail(insforge: InsforgeServer, userId: string, job
     missingSkills: row.missing_skills ?? [],
     sourceUrl: safeHttpUrl(row.source_url),
     foundLabel: formatFoundLabel(row.found_at),
+    // The stored jsonb is read like any untrusted value, so an old or hand-edited row can't crash the page.
+    companyResearch: normalizeDossier(row.company_research),
+    researchedLabel: row.researched_at ? formatFoundLabel(row.researched_at) : null,
   };
+}
+
+type ResearchJobRow = {
+  id: string;
+  title: string;
+  company: string;
+  about_role: string | null;
+  matched_skills: string[] | null;
+  missing_skills: string[] | null;
+  source_url: string | null;
+};
+
+/** The fields the research agent needs for one of the user's jobs, or null when it isn't theirs. Throws on a database error. */
+export async function getJobForResearch(insforge: InsforgeServer, userId: string, jobId: string): Promise<ResearchJob | null> {
+  const { data, error } = await insforge.database
+    .from("jobs")
+    .select("id, title, company, about_role, matched_skills, missing_skills, source_url")
+    .eq("id", jobId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  // The select above lists exactly these columns, so the row has this shape.
+  const row = data as ResearchJobRow;
+  return {
+    id: row.id,
+    title: row.title,
+    company: row.company,
+    aboutRole: row.about_role,
+    matchedSkills: row.matched_skills ?? [],
+    missingSkills: row.missing_skills ?? [],
+    sourceUrl: safeHttpUrl(row.source_url),
+  };
+}
+
+/** Saves (or replaces) the job's dossier and stamps `researched_at`. Throws when the update fails or touches no row. */
+export async function saveCompanyResearch(
+  insforge: InsforgeServer,
+  userId: string,
+  jobId: string,
+  dossier: CompanyDossier,
+): Promise<void> {
+  const { data, error } = await insforge.database
+    .from("jobs")
+    .update({ company_research: dossier, researched_at: new Date().toISOString() })
+    .eq("id", jobId)
+    .eq("user_id", userId)
+    .select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error("The research update matched no job.");
 }

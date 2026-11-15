@@ -173,7 +173,40 @@ export type JobDetail = {
   /** The Adzuna link that View Job Post and Apply Now open; null when missing or not a web link. */
   sourceUrl: string | null;
   foundLabel: string;
+  /** The saved company dossier, or null when the job has not been researched (or the stored value is unusable). */
+  companyResearch: CompanyDossier | null;
+  /** "2 hours ago" for `researched_at`; null when never researched. */
+  researchedLabel: string | null;
 };
+
+/** The saved job fields the research agent reads. */
+export type ResearchJob = {
+  id: string;
+  title: string;
+  company: string;
+  aboutRole: string | null;
+  matchedSkills: string[];
+  missingSkills: string[];
+  /** The Adzuna link; followed once to find the employer's own site. */
+  sourceUrl: string | null;
+};
+
+/** The briefing the research agent builds for one job. Every list is capped and every string trimmed (see `normalizeDossier`). */
+export type CompanyDossier = {
+  companyOverview: string;
+  techStack: string[];
+  culture: string[];
+  whyThisRole: string;
+  yourEdge: string[];
+  gapsToAddress: string[];
+  smartQuestions: string[];
+  interviewPrep: string[];
+  /** Pages the agent actually visited (http or https), never taken from the model's answer. */
+  sources: string[];
+};
+
+/** Response of `POST /api/agent/research`. */
+export type ResearchCompanyResponse = { success: true; data: CompanyDossier } | { success: false; error: string };
 
 /** A page button in the jobs pagination; `ellipsis` stands for the skipped pages. */
 export type PaginationItem = number | "ellipsis";

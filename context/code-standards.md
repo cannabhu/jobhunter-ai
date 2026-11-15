@@ -254,8 +254,8 @@ All environment variables defined in `.env.local` for development. Never hardcod
 | `NEXT_PUBLIC_INSFORGE_URL`      | lib/insforge/ (client + server) |
 | `NEXT_PUBLIC_INSFORGE_ANON_KEY` | lib/insforge/ (client + server) |
 | `NEXT_PUBLIC_APP_URL`           | actions/auth.ts (OAuth redirect) |
-| `BROWSERBASE_API_KEY`           | lib/browserbase.ts     |
-| `BROWSERBASE_PROJECT_ID`        | lib/browserbase.ts     |
+| `BROWSERBASE_API_KEY`           | agent/research.ts      |
+| `BROWSERBASE_PROJECT_ID`        | agent/research.ts      |
 | `OPENAI_API_KEY`                | agent/ functions       |
 | `ADZUNA_APP_ID`                 | lib/adzuna.ts          |
 | `ADZUNA_API_KEY`                | lib/adzuna.ts (Adzuna's `app_key`) |
@@ -322,7 +322,7 @@ Approved dependencies for this project:
 - `posthog-node` — PostHog server client
 - `@react-pdf/renderer` — Resume PDF generation
 - `pdf-parse` — Extract text from uploaded PDF
-- `zod` — Schema validation
+- `zod` — Schema validation (pinned to exactly 4.6.6 to match `@browserbasehq/stagehand`'s own copy; two versions break `extract()` types)
 - `lucide-react` — Icons
 - `tailwindcss` — Styling
 - `shadcn/ui` components — UI primitives
