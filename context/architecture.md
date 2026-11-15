@@ -65,6 +65,9 @@
 │   ├── extractor.ts                       → GPT-4o job description extraction + structuring
 │   └── types.ts                           → Agent-specific TypeScript types
 ├── proxy.ts                                → Session refresh + protected-route redirects
+├── db/
+│   └── migrations/
+│       └── 001_initial_schema.sql         → Tables, indexes, RLS, backfill (applied via InsForge)
 ├── actions/
 │   ├── profile.ts                         → Profile save + update
 │   └── jobs.ts                            → Job status updates
@@ -100,7 +103,8 @@
 ├── lib/
 │   ├── insforge/
 │   │   ├── client.ts                      → InsForge browser client instance
-│   │   └── server.ts                      → InsForge server client + getUser()
+│   │   ├── server.ts                      → InsForge server client + getUser()
+│   │   └── profile.ts                     → getProfile() — reads the profiles row, creating it on first use
 │   ├── browserbase.ts                     → Browserbase session creation + management
 │   ├── stagehand.ts                       → Stagehand initialisation with Browserbase session
 │   ├── adzuna.ts                          → Adzuna API client
@@ -223,8 +227,12 @@ URL saved to profiles table
 | work_authorization  | text        | citizen / permanent_resident / visa_required |
 | resume_pdf_url      | text        | InsForge Storage URL of current resume       |
 | is_complete         | boolean     | True when all required fields filled         |
+| completion_percentage | integer   | 0-100, calculated on save (feature 06)       |
+| missing_fields      | text[]      | Required fields still empty (feature 06)     |
 | created_at          | timestamptz |                                              |
-| updated_at          | timestamptz |                                              |
+| updated_at          | timestamptz | Kept current by a trigger                    |
+
+Rows are created lazily by `getProfile()` in `lib/insforge/profile.ts` — InsForge does not allow triggers on `auth.users`. Any page or route that needs the profile must call it; never assume the row exists.
 
 ### `agent_runs`
 
@@ -246,9 +254,10 @@ URL saved to profiles table
 | id                 | uuid        |                                                |
 | run_id             | uuid        | References agent_runs — null if from URL input |
 | user_id            | uuid        | References profiles                            |
+| external_id        | text        | Adzuna job id — unique per (user_id, external_id), so repeat searches upsert instead of duplicating. Null for url source |
 | source             | text        | search / url                                   |
-| source_url         | text        | Original job listing URL                       |
-| external_apply_url | text        | Direct company apply URL                       |
+| source_url         | text        | Adzuna redirect_url (Apply Now links here)     |
+| external_apply_url | text        | Direct company apply URL — nullable, unused for now |
 | title              | text        |                                                |
 | company            | text        |                                                |
 | location           | text        |                                                |
@@ -265,7 +274,12 @@ URL saved to profiles table
 | matched_skills     | text[]      | Skills user has that match                     |
 | missing_skills     | text[]      | Skills user lacks                              |
 | company_research   | jsonb       | Company dossier from research agent            |
+| researched_at      | timestamptz | When company_research was saved (activity feed)|
 | found_at           | timestamptz |                                                |
+
+`about_role` holds Adzuna's description snippet. `responsibilities`, `requirements`, `nice_to_have`, `benefits` and `about_company` are nullable and stay empty for Adzuna jobs (reserved for a future full-description fetch or URL import).
+
+Schema source of truth: `db/migrations/001_initial_schema.sql` (applied via InsForge `run-raw-sql`). All four tables have RLS: one `for all` policy per table limiting `authenticated` to its own rows (`id = auth.uid()` on profiles, `user_id = auth.uid()` elsewhere).
 
 ### `agent_logs`
 
@@ -283,11 +297,11 @@ URL saved to profiles table
 
 ## InsForge Storage
 
-| Bucket  | Path                         | Contents                  |
-| ------- | ---------------------------- | ------------------------- |
-| resumes | resumes/{user_id}/resume.pdf | Current active resume PDF |
+| Bucket  | Object key             | Contents                  |
+| ------- | ---------------------- | ------------------------- |
+| resumes | {user_id}/resume.pdf   | Current active resume PDF |
 
-Access: authenticated users only, own files only.
+The bucket is **private**. Browsers cannot open its storage URLs, so the file is only ever read on the server (features 07 and 08 run in API routes). The profile page preview is served by a small authenticated route handler that streams the PDF (built in feature 05/06). `profiles.resume_pdf_url` means "a resume exists" — the key is always `{user_id}/resume.pdf`.
 
 ---
 
