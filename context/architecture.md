@@ -43,8 +43,7 @@
 │   ├── (app)/                              → Route group for signed-in pages — shares AppNavbar
 │   │   ├── layout.tsx                     → AppNavbar + main
 │   │   ├── dashboard/
-│   │   │   ├── page.tsx                   → Dashboard (feature 14): incomplete-profile banner (real), stats, activity and charts (mock data until 15-17)
-│   │   │   └── mockDashboard.ts           → Mock stats, activity and chart data from the design; features 15, 16 and 17 replace each export, then delete the file
+│   │   │   ├── page.tsx                   → Dashboard (features 14-17): incomplete-profile banner, stat cards, recent activity and the three charts (all real data; each chart streams in its own Suspense)
 │   │   ├── profile/
 │   │   │   └── page.tsx                   → Profile form + resume management (URL is /profile) — reads getProfile()
 │   │   └── find-jobs/
@@ -75,7 +74,8 @@
 ├── proxy.ts                                → Session refresh + protected-route redirects
 ├── db/
 │   └── migrations/
-│       └── 001_initial_schema.sql         → Tables, indexes, RLS, backfill (applied via InsForge)
+│       ├── 001_initial_schema.sql         → Tables, indexes, RLS, backfill (applied via InsForge)
+│       └── 002_dashboard_stats.sql        → dashboard_stats(p_user_id) function behind the stat cards (feature 15, applied via InsForge)
 ├── actions/
 │   ├── auth.ts                            → OAuth sign-in Server Actions (Google, GitHub)
 │   ├── profile.ts                         → saveProfile — validates the form, computes completion, writes profiles
@@ -133,6 +133,7 @@
 │   │   ├── server.ts                      → InsForge server client + getUser()
 │   │   ├── profile.ts                     → getProfile() — reads the profiles row, creating it on first use
 │   │   ├── jobs.ts                        → getSavedJobScores() (repeat-search lookup), listJobs(query) — filtered, sorted, 20 per page (Find Jobs page) — getJobDetail(id) (job details page, with the saved dossier), getJobForResearch(id) and saveCompanyResearch()
+│   │   ├── dashboard.ts                   → getDashboardStats(): calls the dashboard_stats rpc, null (logged) on failure; getRecentActivity(): latest completed agent_runs + researched jobs, merged, [] (logged) on failure
 │   │   ├── agentLogs.ts                   → logAgent(): one line to agent_logs, never throws
 │   │   └── resumeStorage.ts               → downloadResume(): reads the private resume with retries and real-error logging (file, extract and generate routes)
 │   ├── companyResearch.ts                 → Pure research helpers: homepage choice (job-board denylist, registrableDomain, isSafePublicHost, cleanCompanyName, parseWebsiteAnswer), pickSubPages(), normalizeDossier()/parseModelDossier(), limits
@@ -140,7 +141,9 @@
 │   ├── adzuna.ts                          → Adzuna client: searchJobs(), detectCountry(), formatSalary(), toJobType()
 │   ├── jobScoring.ts                      → normalizeJobScore(): untrusted GPT-4o JSON → safe JobScore
 │   ├── findJobs.ts / findJobsSchema.ts / findJobsMessage.ts → Find Jobs path + limits, zod body schema, banner text
-│   ├── relativeTime.ts                    → formatFoundLabel(): "2 hours ago" / "Yesterday"
+│   ├── dashboardStats.ts                  → parseDashboardStats() (untrusted rpc answer → safe row), percentChange(), buildStatCards() (values, trend badges or fallback notes)
+│   ├── recentActivity.ts                  → buildActivityEntries(): merges finished search runs and researched companies into the newest-first feed (message, label, tone)
+│   ├── relativeTime.ts                    → formatFoundLabel(): "2 hours ago" / "Yesterday"; formatActivityLabel(): same with "10 mins ago"
 │   ├── pagination.ts                      → buildPageItems(totalPages, currentPage): page buttons for the jobs pagination
 │   ├── jobDetails.ts                      → isJobId() (UUID check for the [id] segment), parseJobType()/jobTypeLabel(), safeHttpUrl() (http(s) only)
 │   ├── jobsQuery.ts                       → Find Jobs URL state: parseJobsQuery(), buildJobsHref(), buildTextSearchFilter(), hasActiveFilters()
@@ -158,6 +161,10 @@
 │   ├── rateLimit.ts                       → In-memory per-user sliding-window limiter for paid API routes
 │   ├── routes.ts                          → SIGNED_IN_HOME — post-login destination + homepage CTA (now /dashboard); FIND_JOBS_PAGE_PATH
 │   ├── posthog-server.ts                  → PostHog server client (job_search_started, job_found); shut down in the same function
+│   ├── posthog-query.ts                   → runHogQL: reads events back through PostHog's query API (personal API key, server-only); null on failure
+│   ├── posthog-dashboard.ts               → getJobsByDay, getResearchByDay, getScoreDistribution (per-user HogQL for the dashboard charts)
+│   ├── dashboardCharts.ts                 → Pure chart helpers: day keys, zero-fill, score buckets, row parsing
+│   ├── chartTicks.ts                      → niceTicks: whole-number Y ticks derived from the data
 │   └── utils.ts                           → MATCH_THRESHOLD (70)
 └── types/
     └── index.ts                           → Global TypeScript types
@@ -328,7 +335,11 @@ Rows are created lazily by `getProfile()` in `lib/insforge/profile.ts` — InsFo
 
 `about_role` holds Adzuna's description snippet. `responsibilities`, `requirements`, `nice_to_have`, `benefits` and `about_company` are nullable and stay empty for Adzuna jobs (reserved for a future full-description fetch or URL import).
 
-Schema source of truth: `db/migrations/001_initial_schema.sql` (applied via InsForge `run-raw-sql`). All four tables have RLS: one `for all` policy per table limiting `authenticated` to its own rows (`id = auth.uid()` on profiles, `user_id = auth.uid()` elsewhere).
+Schema source of truth: `db/migrations/001_initial_schema.sql` (applied via InsForge `run-raw-sql`); `002_dashboard_stats.sql` adds the `dashboard_stats(p_user_id uuid)` function (see below). All four tables have RLS: one `for all` policy per table limiting `authenticated` to its own rows (`id = auth.uid()` on profiles, `user_id = auth.uid()` elsewhere).
+
+### `dashboard_stats(p_user_id uuid)` (function, feature 15)
+
+Returns one row for the stat cards: `total_jobs`, `jobs_week_ago`, `avg_match`, `avg_match_week_ago`, `researched` (`company_research is not null`), `jobs_this_week`. `security invoker` (RLS still applies), filtered by `user_id = p_user_id`, executable by `authenticated` only (the anon role gets `permission denied`). "Week ago" means only jobs found before 7 days ago, so the trend badges compare the account now with the account a week ago. Called by `getDashboardStats()` in `lib/insforge/dashboard.ts` through `insforge.database.rpc()`; computing in SQL avoids PostgREST's 1000-row cap on plain selects.
 
 ### `agent_logs`
 

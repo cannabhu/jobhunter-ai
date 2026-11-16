@@ -19,3 +19,8 @@ export function formatFoundLabel(iso: string, now: number = Date.now()): string 
   if (days < 7) return plural(days, "day");
   return new Date(time).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
+
+/** Like `formatFoundLabel`, but minutes are abbreviated ("10 mins ago") as in the dashboard design. */
+export function formatActivityLabel(iso: string, now: number = Date.now()): string {
+  return formatFoundLabel(iso, now).replace(/^(\d+) minutes? ago$/, (_, count: string) => `${count} ${count === "1" ? "min" : "mins"} ago`);
+}

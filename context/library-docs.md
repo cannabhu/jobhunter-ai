@@ -115,6 +115,18 @@ const { error } = await insforge
 
 ---
 
+### RPC (database functions)
+
+```typescript
+const { data, error } = await insforge.database.rpc("dashboard_stats", { p_user_id: user.id });
+// data is an array with one row, because the function RETURNS TABLE
+```
+
+- Functions live in `db/migrations/` and are applied with `run-raw-sql`. Make them `security invoker` so RLS still applies, take `p_user_id` and filter by it, `revoke all ... from public` and `grant execute ... to authenticated`. The anon key gets `42501 permission denied`, which is the quickest way to prove the function name resolves without a session.
+- Use one for aggregates (counts, averages): a plain select is capped at 1000 rows by PostgREST. Read the answer through a parser (`parseDashboardStats`), never cast it; `numeric` columns arrive as JSON numbers but a string is tolerated.
+
+---
+
 ### Storage
 
 ```typescript
@@ -555,6 +567,29 @@ await posthog.shutdown(); // required — ensures event is sent
 - Call `posthog.identify(userId)` after login on client side
 - Call `posthog.reset()` on logout on client side
 
+### Reading events back (dashboard charts, feature 17)
+
+Reading needs a **personal API key** with query read access (`POSTHOG_PERSONAL_API_KEY`); the project token above can only send events. The query API lives on the app host, not the ingestion host: `POSTHOG_API_HOST` is `https://eu.posthog.com` (this project is on the EU cloud) and not `https://eu.i.posthog.com`.
+
+```typescript
+// lib/posthog-query.ts — server only
+POST {POSTHOG_API_HOST}/api/projects/{POSTHOG_PROJECT_ID}/query/
+Authorization: Bearer {POSTHOG_PERSONAL_API_KEY}
+{ "name": "dashboard-jobs-by-day", "query": { "kind": "HogQLQuery", "query": "SELECT ... WHERE distinct_id = {user_id}", "values": { "user_id": "..." } } }
+// response: { "results": [[...], ...] }
+```
+
+**Rules:**
+
+- Filter every query by `distinct_id = {user_id}` with the id from `getUser()`. The server captures each event with `distinctId: user.id`. Pass it in `values`, never into the SQL text
+- Always bound the time: `timestamp >= toDateTime({since}, 'UTC')`. Group days with `toString(toDate(toTimeZone(timestamp, 'UTC')))`; the project timezone is UTC. `toDate()` takes one argument only
+- `matchScore` is numeric on `job_found`: `toInt(round(toFloat(properties.matchScore)))`. Aggregate in the query (at most 101 score rows) and bucket in TypeScript so the bucketing is testable
+- `runHogQL` returns `null` on any failure and logs the status and error code only, never the key or the response body. Parse the rows strictly (`parseDayCounts`, `parseScoreCounts`); a bad row means an error state, not a wrong number
+- Each chart read is a `'use cache'` function keyed by `userId`: an answer is reused for 60 seconds (`{ stale: 30, revalidate: 60, expire: 300 }`) so a dashboard load is not three API calls; a failed read (null) calls `cacheLife("seconds")` so an error is retried almost at once and never held on screen. `cacheLife` takes a profile name or an object, not a union, so branch with `if` / `else`. With the default in-memory handler a serverless host may not reuse entries between requests
+- The exported getters (`getJobsByDay` and the other two) never reject (`.catch` to null), so the dashboard page starts all three before its database queries finish and passes the promises to the chart sections
+- The key must be a personal API key (`phx_`). `runHogQL` warns once if it starts with `phc_` (project token), `phs_` (project secret key) or anything else, still sends the request, and adds a hint to every 401 / 403 log line
+- The PostHog MCP (`execute-sql`, `query-trends`) is for exploring and checking the data while building. The app cannot use it; it calls the REST endpoint above
+
 ---
 
 ## Recharts
@@ -580,7 +615,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 - Every chart file is a Client Component (`"use client"`); the page stays a Server Component and passes plain data arrays (`ChartPoint[]`) in.
 - Recharts takes SVG props, not class names, so colours are CSS variables (`var(--color-info)`), never hex. Shared axis, grid and tooltip styles live in `components/dashboard/chartStyles.ts`. The gradient under the line uses `stopColor="var(--color-accent)"` with `stopOpacity`.
 - `ResponsiveContainer` needs a parent with a definite size. `ChartCard` provides one: a `relative min-h-[280px] flex-1` box holding an `absolute inset-0` child. Do not put a chart in a plain auto-height div.
-- Y-axis ticks are passed in by the page (`yTicks`) because the design fixes them (0-12 by 3, 0-100 by 25). Feature 17 must derive them from the real data.
+- Y-axis ticks are passed in as `yTicks`, derived from the data by `chartYTicks()` / `niceTicks()` (`lib/chartTicks.ts`): whole numbers from 0 to a round number at or above the highest value. The 30-day chart sets `interval="preserveStartEnd"` and `minTickGap` on the `XAxis` so the labels don't overlap.
 
 ---
 

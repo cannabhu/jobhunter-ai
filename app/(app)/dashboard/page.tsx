@@ -2,21 +2,18 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ChartCard } from "@/components/dashboard/ChartCard";
-import { JobsOverTimeChart } from "@/components/dashboard/JobsOverTimeChart";
-import { MatchDistributionChart } from "@/components/dashboard/MatchDistributionChart";
+import { ChartSkeleton } from "@/components/dashboard/ChartSkeleton";
+import { JobsOverTimeSection } from "@/components/dashboard/JobsOverTimeSection";
+import { MatchDistributionSection } from "@/components/dashboard/MatchDistributionSection";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
-import { ResearchActivityChart } from "@/components/dashboard/ResearchActivityChart";
+import { ResearchActivitySection } from "@/components/dashboard/ResearchActivitySection";
 import { StatsBar } from "@/components/dashboard/StatsBar";
 import { CompletionIndicator } from "@/components/profile/CompletionIndicator";
+import { buildStatCards } from "@/lib/dashboardStats";
+import { getDashboardStats, getRecentActivity } from "@/lib/insforge/dashboard";
 import { getProfile } from "@/lib/insforge/profile";
-import { getUser } from "@/lib/insforge/server";
-import {
-  MOCK_ACTIVITY,
-  MOCK_JOBS_BY_DAY,
-  MOCK_RESEARCH_BY_DAY,
-  MOCK_SCORE_DISTRIBUTION,
-  MOCK_STATS,
-} from "./mockDashboard";
+import { createInsforgeServer, getUser } from "@/lib/insforge/server";
+import { getJobsByDay, getResearchByDay, getScoreDistribution } from "@/lib/posthog-dashboard";
 
 export const metadata: Metadata = {
   title: "Dashboard — JobPilot",
@@ -26,7 +23,17 @@ async function DashboardContent() {
   const user = await getUser();
   if (!user) redirect("/login?error=session");
 
-  const profile = await getProfile();
+  // Start the chart queries now, so PostHog is working while the database queries below finish. The getters never reject.
+  const jobsByDay = getJobsByDay(user.id);
+  const researchByDay = getResearchByDay(user.id);
+  const scoreDistribution = getScoreDistribution(user.id);
+
+  const insforge = await createInsforgeServer();
+  const [profile, stats, activity] = await Promise.all([
+    getProfile(),
+    getDashboardStats(insforge, user.id),
+    getRecentActivity(insforge, user.id),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -34,19 +41,25 @@ async function DashboardContent() {
       {profile && !profile.is_complete ? (
         <CompletionIndicator percentage={profile.completion_percentage} missingFields={profile.missing_fields} actionHref="/profile" />
       ) : null}
-      <StatsBar stats={MOCK_STATS} />
+      <StatsBar stats={buildStatCards(stats)} />
       <div className="grid gap-6 lg:grid-cols-2">
-        <RecentActivity entries={MOCK_ACTIVITY} />
-        <ChartCard id="research-activity-heading" title="Company Research Activity">
-          <ResearchActivityChart data={MOCK_RESEARCH_BY_DAY} yTicks={[0, 3, 6, 9, 12]} />
+        <RecentActivity entries={activity} />
+        <ChartCard id="research-activity-heading" title="Company Research Activity" window="Last 7 days">
+          <Suspense fallback={<ChartSkeleton />}>
+            <ResearchActivitySection data={researchByDay} />
+          </Suspense>
         </ChartCard>
       </div>
       <div className="grid gap-6 lg:grid-cols-3">
-        <ChartCard id="jobs-over-time-heading" title="Jobs Found Over Time" className="lg:col-span-2">
-          <JobsOverTimeChart data={MOCK_JOBS_BY_DAY} yTicks={[0, 25, 50, 75, 100]} />
+        <ChartCard id="jobs-over-time-heading" title="Jobs Found Over Time" window="Last 30 days" className="lg:col-span-2">
+          <Suspense fallback={<ChartSkeleton />}>
+            <JobsOverTimeSection data={jobsByDay} />
+          </Suspense>
         </ChartCard>
-        <ChartCard id="match-distribution-heading" title="Match Score Distribution">
-          <MatchDistributionChart data={MOCK_SCORE_DISTRIBUTION} yTicks={[0, 25, 50, 75, 100]} />
+        <ChartCard id="match-distribution-heading" title="Match Score Distribution" window="Last 30 days">
+          <Suspense fallback={<ChartSkeleton />}>
+            <MatchDistributionSection data={scoreDistribution} />
+          </Suspense>
         </ChartCard>
       </div>
     </div>

@@ -4,6 +4,12 @@ type Props = {
   stat: StatCardData;
 };
 
+const TREND_CLASS = {
+  up: "bg-success-lightest text-success-darker",
+  down: "bg-error-light text-error",
+  flat: "bg-surface-secondary text-text-secondary",
+} as const;
+
 export function StatCard({ stat }: Props) {
   const { footer } = stat;
 
@@ -13,7 +19,7 @@ export function StatCard({ stat }: Props) {
       <p className="mt-1 text-3xl font-semibold text-text-primary">{stat.value}</p>
       {footer.kind === "trend" ? (
         <p className="mt-2 flex items-center gap-3">
-          <span className="rounded-sm bg-success-lightest px-2 py-0.5 text-xs font-medium text-success-darker">{footer.change}</span>
+          <span className={`rounded-sm px-2 py-0.5 text-xs font-medium ${TREND_CLASS[footer.tone]}`}>{footer.change}</span>
           <span className="text-xs text-text-muted">{footer.label}</span>
         </p>
       ) : (
