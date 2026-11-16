@@ -261,6 +261,9 @@ All environment variables defined in `.env.local` for development. Never hardcod
 | `ADZUNA_API_KEY`                | lib/adzuna.ts (Adzuna's `app_key`) |
 | `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` | instrumentation-client.ts, instrumentation.ts |
 | `NEXT_PUBLIC_POSTHOG_HOST`      | instrumentation-client.ts, instrumentation.ts |
+| `POSTHOG_PERSONAL_API_KEY`      | lib/posthog-query.ts (server-only; query read scope; a secret) |
+| `POSTHOG_PROJECT_ID`            | lib/posthog-query.ts   |
+| `POSTHOG_API_HOST`              | lib/posthog-query.ts (the app host, `https://eu.posthog.com` or `https://us.posthog.com`, not the `*.i.posthog.com` ingestion host) |
 
 `NEXT_PUBLIC_` prefix means the variable is exposed to the browser. Never add `NEXT_PUBLIC_` to secret keys.
 

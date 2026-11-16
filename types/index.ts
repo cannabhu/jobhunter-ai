@@ -215,7 +215,20 @@ export type PaginationItem = number | "ellipsis";
 export type StatCardData = {
   label: string;
   value: string;
-  footer: { kind: "trend"; change: string; label: string } | { kind: "note"; text: string };
+  footer: { kind: "trend"; change: string; tone: "up" | "down" | "flat"; label: string } | { kind: "note"; text: string };
+};
+
+/** The numbers behind the dashboard stat cards, from the `dashboard_stats` database function. */
+export type DashboardStatsRow = {
+  totalJobs: number;
+  /** How many of those jobs were found before 7 days ago. */
+  jobsWeekAgo: number;
+  /** Average match score now, or null when there are no jobs. */
+  avgMatch: number | null;
+  /** Average match score of the jobs found before 7 days ago, or null when there are none. */
+  avgMatchWeekAgo: number | null;
+  researched: number;
+  jobsThisWeek: number;
 };
 
 /** Dot colour of a recent-activity entry. */

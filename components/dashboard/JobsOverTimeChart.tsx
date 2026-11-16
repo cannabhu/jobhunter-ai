@@ -22,7 +22,7 @@ export function JobsOverTimeChart({ data, yTicks }: Props) {
           </linearGradient>
         </defs>
         <CartesianGrid vertical={false} stroke={GRID_STROKE} strokeDasharray={GRID_DASH} />
-        <XAxis dataKey="label" axisLine={false} tickLine={false} tick={AXIS_TICK} tickMargin={12} />
+        <XAxis dataKey="label" axisLine={false} tickLine={false} tick={AXIS_TICK} tickMargin={12} interval="preserveStartEnd" minTickGap={24} />
         <YAxis axisLine={false} tickLine={false} tick={AXIS_TICK} ticks={yTicks} domain={[0, yTicks[yTicks.length - 1]]} width={44} />
         <Tooltip contentStyle={TOOLTIP_STYLE} />
         <Area
