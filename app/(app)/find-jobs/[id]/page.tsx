@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { CompanyResearch } from "@/components/job-details/CompanyResearch";
+import { CoverLetter } from "@/components/job-details/CoverLetter";
 import { JobActions } from "@/components/job-details/JobActions";
 import { JobDescription } from "@/components/job-details/JobDescription";
 import { JobHeader } from "@/components/job-details/JobHeader";
@@ -45,6 +46,8 @@ async function JobDetailsContent({ params }: { params: Params }) {
         dossier={job.companyResearch}
         researchedLabel={job.researchedLabel}
       />
+      {/* Feature 18 shows the empty state only; feature 19 passes the saved letter. */}
+      <CoverLetter company={job.company} letter={null} />
       <JobActions company={job.company} applyUrl={job.sourceUrl} />
     </div>
   );

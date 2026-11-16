@@ -332,3 +332,34 @@ Built from `context/designs/dashboard.png` (2000px render of a 1440px frame, so 
 **Pattern notes:** the Company Research Activity chart has a 40px top margin because its plot starts lower in the design than the other two charts (115px vs 82px below the card top). Y ticks are passed in as `yTicks` and, since feature 17, derived from the data by `niceTicks` (`lib/chartTicks.ts`; the mock used the design's fixed 0 to 12 and 0 to 100). Jobs Found Over Time has 30 daily labels ("Oct 18"), thinned with `interval="preserveStartEnd"` and `minTickGap={24}`; Company Research Activity keeps weekday labels ("Mon"); Match Score Distribution has six bars (`<50%` first). Chart colours are CSS variables in SVG props (recharts takes no class names); `--color-chart-axis` is the existing token for the design's `#9CA3AF`. The design's navbar shows no Sign out and a larger logo; the shipped `AppNavbar` is kept, as for the other pages.
 
 **Incomplete-profile banner:** the dashboard reuses `CompletionIndicator` (see its entry) at the top, only while `is_complete` is false. It takes an optional `actionHref`; when set, a `mt-5 inline-block text-sm font-medium text-accent hover:text-accent-dark` "Complete your profile" link follows the tags. The profile page does not pass it. Not in the design (which shows a complete profile).
+
+### Dashboard route error — `app/(app)/dashboard/error.tsx`
+Route-level fallback (client component, `retry` prop from this Next version, not `reset`). Renders inside the `(app)` layout, so the navbar stays. Not in the design; built from existing patterns.
+
+| Property | Value |
+|---|---|
+| Wrapper | same page container as the dashboard: `mx-auto w-full max-w-[1440px] px-4 py-8 sm:px-6 lg:px-14` |
+| Card | `role="alert"`, `flex flex-col items-center rounded-xl border border-border bg-surface px-6 py-16 text-center shadow-card` |
+| Icon tile | `size-12 rounded-xl bg-surface-tertiary` + `TriangleAlert size-6 text-error` (same tile as the Company Research empty state) |
+| Heading | `h1` `mt-3 text-base font-semibold text-text-primary` ("Couldn't load your dashboard") |
+| Text | `mt-1 max-w-xs text-sm text-text-muted` |
+| Button | in-app purple primary: `mt-4 inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground shadow-card hover:bg-accent-dark` + `RefreshCw size-4`, "Try again" calls `retry()` |
+
+**Pattern notes:** the raw error is never shown; it goes to `posthog.captureException` like `app/global-error.tsx`. The chart readers never reject, so this only catches something unexpected. A future `error.tsx` for another `(app)` route should copy this shape.
+
+### Cover Letter card (feature 18) — `components/job-details/CoverLetter.tsx`
+Client component on `/find-jobs/[id]`, between Company Research and Apply Now. No design exists; it copies the Company Research card. UI only until feature 19. Last updated: 2026-11-16
+
+| Part | Class / behaviour |
+| --- | --- |
+| Card + header | same as Company Research: `overflow-hidden rounded-xl border border-border bg-surface shadow-card`; header `flex items-center justify-between gap-4 border-b border-border px-6 py-4`; `SectionIcon tone="accent"` + `FileText`; title `text-base font-semibold text-text-primary` |
+| Header button | `rounded-lg px-4 py-2 text-sm font-medium shadow-card`, `gap-2`, `size-4` icon. No letter: primary accent, "Generate Cover Letter", `FileText`. Letter exists: secondary, "Regenerate", `RefreshCw`. Busy: `LoaderCircle animate-spin`, "Writing your cover letter...", `disabled:cursor-not-allowed disabled:opacity-70` |
+| Empty state | same as Company Research (`px-6 py-12`, tile `size-12 rounded-xl bg-surface-tertiary` + `FileText size-6 text-text-muted`, "No cover letter yet") |
+| Body (letter exists) | `flex flex-col gap-4 px-6 py-6` |
+| Meta line | `text-xs text-text-muted`: "Formal tone · Generated 2 hours ago"; "Edited" pill `rounded-full bg-surface-secondary px-2 py-0.5 font-medium text-text-secondary` |
+| Textarea | `w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm leading-6 text-text-primary focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none`, 18 rows, `aria-label` |
+| Footer row | `flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`; word count `text-xs text-text-muted` ("152 words"), "Saved" `role="status" font-medium text-success-foreground`; buttons `gap-2`: secondary Copy (`Copy` icon, becomes `Check` + "Copied" for 2s) and primary "Save changes" (disabled until the text differs from the saved letter) |
+| Regenerate confirm | `role="alertdialog"` strip under the header: `border-b border-border bg-surface-secondary px-6 py-3`, bold "This replaces your edited letter." lead-in, secondary Cancel + primary "Replace and regenerate". Shown only when the letter has saved or unsaved edits |
+| Error line | `role="alert" border-b border-border px-6 py-3 text-sm text-error` (as the research card) |
+
+**Profile form:** "Cover Letter Tone (Optional)" is a full-width `SelectInput` at the end of Job Preferences (placeholder "Choose a tone"; Formal, Casual, Enthusiastic).
