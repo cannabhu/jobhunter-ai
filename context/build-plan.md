@@ -446,13 +446,95 @@ Wire three dashboard charts to real PostHog event data for current user.
 
 ---
 
+## Phase 6 — Cover Letters
+
+### 18 Cover Letter Card — Full UI
+
+Build the Cover Letter card on the job details page and the Cover Letter Tone control on the profile form. No generation or save logic yet — the card shows its empty state for real jobs, and the generated state is built with a mock letter and checked visually.
+
+**UI:**
+
+- Cover Letter card on `/find-jobs/[id]`, after Company Research and before Apply Now, same card shell as Company Research
+- Header — "Cover Letter" title, Generate Cover Letter primary button (accent, `FileText` icon); once a letter exists it becomes a secondary Regenerate button
+- Empty state — icon tile, "No cover letter yet", one line saying the letter uses the profile, the job and the company research when it exists
+- Generated state:
+  - Editable textarea holding the letter
+  - Meta line — tone used and "Generated 2 hours ago"; "Edited" label once the user's changes are saved
+  - Save changes button — disabled until the text is edited; "Saved" confirmation after a save
+  - Copy button — label changes to "Copied" for a moment
+  - Regenerate button
+  - Word count
+- Regenerate confirm — when the letter has edits, an inline `role="alertdialog"` panel under the row ("This replaces your edited letter.") with a secondary Cancel and a primary "Replace and regenerate", same as Generate Resume
+- Loading state — button disabled, label "Writing your cover letter..."
+- Error line — `role="alert"`, same style as the research error
+- Cover Letter Tone dropdown in the Job Preferences section of the profile form — Formal, Casual, Enthusiastic (listed in feature 05, left out of the design)
+- Optional field: it does not count toward profile completion
+
+---
+
+### 19 AI Cover Letter Generation
+
+GPT-4o writes a cover letter for one saved job, in the user's chosen tone, from three sources: the job posting, the saved profile, and the company dossier when the job has been researched. The user can edit and save the letter.
+
+**Logic:**
+
+- `db/migrations/003_cover_letters.sql`, applied via InsForge `run-raw-sql`: add `cover_letter` (text), `cover_letter_generated_at` (timestamptz) and `cover_letter_edited_at` (timestamptz, null until the user saves an edit) to `jobs`. Existing RLS already covers them
+- Profile tone saves: add `coverLetterTone` to `lib/profileSchema.ts` (enum `""`, formal, casual, enthusiastic), `lib/profileFormData.ts` and `lib/profileMapping.ts`; `inputToRowUpdate()` writes `cover_letter_tone` and its "left out on purpose" comment is removed; the form pre-fills it on return visits
+- POST /api/agent/cover-letter receives jobId (zod schema `lib/coverLetterSchema.ts`, same shape as `researchSchema`)
+- Auth check first — 401 if signed out
+- `checkRateLimit('cover-letter:{userId}')` before any model call — 429 with the minutes to wait
+- Load the job scoped to `user_id` (title, company, `about_role`, `matched_skills`, `missing_skills`, `match_reason`, `company_research`) with a new `getJobForCoverLetter()` in `lib/insforge/jobs.ts` — 404 if it is not the user's
+- Load the saved profile with `getProfile()` — the saved profile, not the form on screen
+- If the profile has no full name and no skills, return 422 "Complete your profile first" with a link to /profile (same pattern as `/api/agent/find`)
+- `agent/coverLetter.ts` — `writeCoverLetter(job, profile)`: one GPT-4o call through the shared client in `lib/openai.ts`
+  - Tone comes from `profiles.cover_letter_tone`, falling back to formal
+  - If `company_research` exists, the letter may use `companyOverview`, `techStack`, `culture`, `whyThisRole` and `yourEdge`; with no research it is written from the posting and profile alone
+  - Missing skills are framed honestly through adjacent experience, never hidden or invented
+
+System prompt:
+
+```
+You are an expert career writer drafting a cover letter for one specific candidate and one specific role.
+You are given (a) the job posting, (b) the candidate's profile, and (c) optionally research on the company.
+Write in the requested tone.
+
+Rules:
+- Ground every claim about the candidate in the provided profile. Never invent employers, titles,
+  projects, metrics, degrees or years of experience.
+- Ground every claim about the company in the provided research or job posting. If research is missing,
+  stay with what the posting says.
+- Lead with why this role and this company, not with a summary of the resume.
+- Connect two or three of the candidate's real strengths to what the role asks for.
+- If a required skill is missing, do not claim it. Point to adjacent experience, or leave it out.
+- 250 to 350 words, three or four short paragraphs, no bullet points.
+- No placeholders such as [Your Name] or [Company]. Use the real names. Sign off with the candidate's full name.
+
+Return ONLY valid JSON: { "coverLetter": "string" }
+```
+
+- User prompt feeds the three sources: `JOB POSTING`, `CANDIDATE PROFILE` (name, current_title, years_experience, skills, work_experience), `COMPANY RESEARCH` (only when present), plus `TONE`
+- Temperature: 0.5
+- `lib/coverLetterContent.ts` — `normalizeCoverLetter()`: untrusted GPT-4o JSON → trimmed, length-capped text; rejects empty, too-short and leftover-placeholder answers
+- Save with `saveCoverLetter()`: updates `jobs.cover_letter` and `cover_letter_generated_at` and clears `cover_letter_edited_at`. Regenerate replaces the letter. Nothing is saved if GPT-4o fails
+- GPT-4o is required here, so unlike research there is no fallback letter: an OpenAI outage or quota error → 503, anything else → 500 (human-readable text, never the raw error)
+- Save edits: Server Action `saveCoverLetterEdits(jobId, text)` in `actions/coverLetter.ts` (a plain DB write, no model call). Validates with zod (job id, trimmed text, non-empty, length cap in `lib/coverLetter.ts`), updates `jobs.cover_letter` and sets `cover_letter_edited_at`, scoped to `user_id` and only when a letter already exists, then `revalidatePath` for the job page
+- Card wiring: Generate / Regenerate posts to the route and refreshes the page the same way the research card does; the card reads the saved letter, `generated_at` and `edited_at`
+- Copy copies what is on screen, including unsaved changes
+- Delete the mock letter used by feature 18
+- Docs when built: `architecture.md` (new route, Server Action, agent file, lib files, `jobs` columns, data flow), `progress-tracker.md`, `ui-registry.md`
+
+**PostHog event:** `cover_letter_generated` — { userId, jobId, company } (server side with `createPostHogServer()`, shut down in the same function)
+
+---
+
 ## Feature Count
 
-| Phase                 | Features |
-| --------------------- | -------- |
-| Phase 1 — Foundation  | 4        |
-| Phase 2 — Profile     | 4        |
-| Phase 3 — Find Jobs   | 3        |
-| Phase 4 — Job Details | 2        |
-| Phase 5 — Dashboard   | 4        |
-| **Total**             | **17**   |
+| Phase                   | Features |
+| ----------------------- | -------- |
+| Phase 1 — Foundation    | 4        |
+| Phase 2 — Profile       | 4        |
+| Phase 3 — Find Jobs     | 3        |
+| Phase 4 — Job Details   | 2        |
+| Phase 5 — Dashboard     | 4        |
+| Phase 6 — Cover Letters | 2        |
+| **Total**               | **19**   |

@@ -247,3 +247,15 @@ export type ChartPoint = {
   label: string;
   value: number;
 };
+
+export type CoverLetterTone = "formal" | "casual" | "enthusiastic";
+
+/** The saved cover letter of one job, as the Cover Letter card shows it. */
+export type SavedCoverLetter = {
+  text: string;
+  tone: CoverLetterTone;
+  /** "2 hours ago" for when it was generated. */
+  generatedLabel: string;
+  /** True once the user has saved their own changes to the generated text. */
+  edited: boolean;
+};
