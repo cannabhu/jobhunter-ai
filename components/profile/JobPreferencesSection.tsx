@@ -39,9 +39,8 @@ export function JobPreferencesSection({ values }: Props) {
         <FormField label="Preferred Locations (Optional)" htmlFor="preferredLocations">
           <input id="preferredLocations" name="preferredLocations" type="text" placeholder="E.g. New York, London" defaultValue={values.preferredLocations} className={inputClass} />
         </FormField>
-        {/* Feature 18 is the control only: nothing reads or saves this field until feature 19. */}
         <FormField label="Cover Letter Tone (Optional)" htmlFor="coverLetterTone">
-          <SelectInput id="coverLetterTone" name="coverLetterTone" options={COVER_LETTER_TONE_OPTIONS} placeholder="Choose a tone" />
+          <SelectInput id="coverLetterTone" name="coverLetterTone" options={COVER_LETTER_TONE_OPTIONS} defaultValue={values.coverLetterTone} placeholder="Choose a tone" />
         </FormField>
       </div>
     </ProfileSection>

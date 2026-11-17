@@ -1,14 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
 import { Check, Copy, FileText, LoaderCircle, RefreshCw } from "lucide-react";
+import { saveCoverLetterEdits } from "@/actions/coverLetter";
 import { SectionIcon } from "@/components/job-details/SectionIcon";
-import type { CoverLetterTone, SavedCoverLetter } from "@/types";
+import { FilterSelect } from "@/components/shared/FilterSelect";
+import { COVER_LETTER_TONE_VALUES } from "@/lib/profileConstants";
+import { COVER_LETTER_FAILED, COVER_LETTER_MAX_CHARS, COVER_LETTER_PATH, resolveTone } from "@/lib/coverLetter";
+import type { CoverLetterResponse, CoverLetterTone, SavedCoverLetter } from "@/types";
 
 type Props = {
+  jobId: string;
   company: string;
   /** Null until a letter has been generated for this job. */
   letter: SavedCoverLetter | null;
+  /** The tone the picker starts on: the letter's, else the profile's. */
+  defaultTone: CoverLetterTone;
 };
 
 const TONE_LABEL: Record<CoverLetterTone, string> = {
@@ -16,6 +25,8 @@ const TONE_LABEL: Record<CoverLetterTone, string> = {
   casual: "Casual",
   enthusiastic: "Enthusiastic",
 };
+
+const TONE_OPTIONS = COVER_LETTER_TONE_VALUES.map((value) => ({ value, label: TONE_LABEL[value] }));
 
 const COPIED_MS = 2000;
 
@@ -27,16 +38,23 @@ const secondaryButtonClass = "border border-border bg-surface text-text-primary 
 const countWords = (text: string): number => text.trim().split(/\s+/).filter(Boolean).length;
 
 /**
- * The Cover Letter card on the job details page. Feature 18 is the UI only: Generate, Regenerate and Save changes
- * have no effect yet, and `busy`, `error` and `saved` are set by feature 19.
+ * The Cover Letter card on the job details page. The page keys it on the letter's `generatedAt`, so a newly written
+ * letter remounts it and the textarea starts from the new text; a saved edit keeps it mounted, so "Saved" stays.
  */
-export function CoverLetter({ company, letter }: Props) {
+export function CoverLetter({ jobId, company, letter, defaultTone }: Props) {
+  const router = useRouter();
   const [text, setText] = useState(letter?.text ?? "");
+  const [tone, setTone] = useState<CoverLetterTone>(defaultTone);
   const [copied, setCopied] = useState(false);
   const [confirmingReplace, setConfirmingReplace] = useState(false);
-  const [busy] = useState(false);
-  const [error] = useState<string | null>(null);
-  const [saved] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [refreshing, startRefresh] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [needsProfile, setNeedsProfile] = useState(false);
+  const [saved, setSaved] = useState(false);
+  // Held until the refreshed page has the saved letter, so the card never flashes back to its old state.
+  const busy = generating || saving || refreshing;
 
   useEffect(() => {
     if (!copied) return;
@@ -50,9 +68,32 @@ export function CoverLetter({ company, letter }: Props) {
   const hasEdits = hasLetter && (letter.edited || dirty);
   const words = countWords(text);
 
-  function generate() {
-    // Feature 19 posts to the cover letter route here.
+  async function generate() {
+    if (busy) return;
     setConfirmingReplace(false);
+    setGenerating(true);
+    setError(null);
+    setNeedsProfile(false);
+    setSaved(false);
+    try {
+      const response = await fetch(COVER_LETTER_PATH, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, tone }),
+      });
+      const result: CoverLetterResponse | null = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        setError(result && !result.success ? result.error : COVER_LETTER_FAILED);
+        setNeedsProfile(response.status === 422);
+        return;
+      }
+      startRefresh(() => router.refresh());
+    } catch (generateError) {
+      console.error("[CoverLetter]", generateError);
+      setError(COVER_LETTER_FAILED);
+    } finally {
+      setGenerating(false);
+    }
   }
 
   function handleHeaderClick() {
@@ -60,11 +101,30 @@ export function CoverLetter({ company, letter }: Props) {
       setConfirmingReplace(true);
       return;
     }
-    generate();
+    void generate();
   }
 
-  function handleSave() {
-    // Feature 19 calls the save action here.
+  async function handleSave() {
+    if (busy || !dirty) return;
+    setSaving(true);
+    setError(null);
+    setNeedsProfile(false);
+    try {
+      const result = await saveCoverLetterEdits(jobId, text);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      // The server tidies the text (trailing spaces, extra blank lines) before storing it. Show what was stored, or the
+      // textarea would still differ from the saved letter and Save changes would stay enabled.
+      setText(result.text);
+      setSaved(true);
+    } catch (saveError) {
+      console.error("[CoverLetter]", saveError);
+      setError("We couldn't save your changes. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleCopy() {
@@ -76,28 +136,39 @@ export function CoverLetter({ company, letter }: Props) {
     }
   }
 
-  const HeaderIcon = busy ? LoaderCircle : hasLetter ? RefreshCw : FileText;
-  const headerLabel = busy ? "Writing your cover letter..." : hasLetter ? "Regenerate" : "Generate Cover Letter";
+  const writing = generating || refreshing;
+  const HeaderIcon = writing ? LoaderCircle : hasLetter ? RefreshCw : FileText;
+  const headerLabel = writing ? "Writing your cover letter..." : hasLetter ? "Regenerate" : "Generate Cover Letter";
   const CopyIcon = copied ? Check : Copy;
 
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-surface shadow-card">
-      <div className="flex items-center justify-between gap-4 border-b border-border px-6 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-border px-6 py-4">
         <div className="flex items-center gap-2.5">
           <SectionIcon tone="accent">
             <FileText />
           </SectionIcon>
           <h2 className="text-base font-semibold text-text-primary">Cover Letter</h2>
         </div>
-        <button
-          type="button"
-          onClick={handleHeaderClick}
-          disabled={busy || confirmingReplace}
-          className={`${buttonClass} ${hasLetter ? secondaryButtonClass : primaryButtonClass}`}
-        >
-          <HeaderIcon className={`size-4 ${busy ? "animate-spin" : ""}`} aria-hidden="true" />
-          {headerLabel}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <FilterSelect
+            label="Cover letter tone"
+            name="tone"
+            options={TONE_OPTIONS}
+            value={tone}
+            onChange={(value) => setTone(resolveTone(value))}
+            disabled={busy || confirmingReplace}
+          />
+          <button
+            type="button"
+            onClick={handleHeaderClick}
+            disabled={busy || confirmingReplace}
+            className={`${buttonClass} ${hasLetter ? secondaryButtonClass : primaryButtonClass}`}
+          >
+            <HeaderIcon className={`size-4 ${writing ? "animate-spin" : ""}`} aria-hidden="true" />
+            {headerLabel}
+          </button>
+        </div>
       </div>
 
       {confirmingReplace ? (
@@ -113,7 +184,7 @@ export function CoverLetter({ company, letter }: Props) {
             <button type="button" onClick={() => setConfirmingReplace(false)} className={`${buttonClass} ${secondaryButtonClass}`}>
               Cancel
             </button>
-            <button type="button" onClick={generate} className={`${buttonClass} ${primaryButtonClass}`}>
+            <button type="button" onClick={() => void generate()} className={`${buttonClass} ${primaryButtonClass}`}>
               Replace and regenerate
             </button>
           </div>
@@ -122,6 +193,14 @@ export function CoverLetter({ company, letter }: Props) {
       {error ? (
         <p role="alert" className="border-b border-border px-6 py-3 text-sm text-error">
           {error}
+          {needsProfile ? (
+            <>
+              {" "}
+              <Link href="/profile" className="font-medium underline underline-offset-2">
+                Go to your profile
+              </Link>
+            </>
+          ) : null}
         </p>
       ) : null}
 
@@ -138,7 +217,11 @@ export function CoverLetter({ company, letter }: Props) {
           <textarea
             aria-label={`Cover letter for ${company}`}
             value={text}
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => {
+              setText(event.target.value);
+              setSaved(false);
+            }}
+            maxLength={COVER_LETTER_MAX_CHARS}
             rows={18}
             disabled={busy}
             className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm leading-6 text-text-primary focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none disabled:bg-surface-tertiary disabled:text-text-muted"
@@ -157,7 +240,7 @@ export function CoverLetter({ company, letter }: Props) {
                 <CopyIcon className="size-4" aria-hidden="true" />
                 {copied ? "Copied" : "Copy"}
               </button>
-              <button type="button" onClick={handleSave} disabled={!dirty || busy} className={`${buttonClass} ${primaryButtonClass}`}>
+              <button type="button" onClick={() => void handleSave()} disabled={!dirty || busy} className={`${buttonClass} ${primaryButtonClass}`}>
                 Save changes
               </button>
             </div>

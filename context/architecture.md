@@ -57,7 +57,8 @@
 │       │   └── refresh/route.ts           → Session refresh for the browser client
 │       ├── agent/
 │       │   ├── find/route.ts              → Trigger Adzuna job discovery
-│       │   └── research/route.ts          → Trigger company research agent
+│       │   ├── research/route.ts          → Trigger company research agent
+│       │   └── cover-letter/route.ts      → Write (or rewrite) the cover letter of one saved job (feature 19)
 │       ├── resume/
 │       │   ├── upload/route.ts            → Store the picked resume PDF (POST, on file pick)
 │       │   ├── file/route.ts              → Stream the user's own private resume PDF (GET)
@@ -69,16 +70,19 @@
 │   ├── matcher.ts                         → scoreJob(): one GPT-4o call per job against the saved profile (feature 10)
 │   ├── resumeExtractor.ts                 → GPT-4o resume text → form-shaped profile data (feature 07)
 │   ├── resumeWriter.ts                    → GPT-4o profile → resume summary + role bullets (feature 08)
+│   ├── coverLetter.ts                     → writeCoverLetter(): one GPT-4o call (job posting + saved profile + dossier when it exists, in the tone asked for, else the profile's, else formal) → safe letter text. No fallback: throws CoverLetterUnavailableError (OpenAI down) or CoverLetterUnusableError (answer failed the checks) and nothing is saved (feature 19)
 │   ├── extractor.ts                       → GPT-4o job description extraction + structuring
 │   └── types.ts                           → Agent-specific TypeScript types
 ├── proxy.ts                                → Session refresh + protected-route redirects
 ├── db/
 │   └── migrations/
 │       ├── 001_initial_schema.sql         → Tables, indexes, RLS, backfill (applied via InsForge)
-│       └── 002_dashboard_stats.sql        → dashboard_stats(p_user_id) function behind the stat cards (feature 15, applied via InsForge)
+│       ├── 002_dashboard_stats.sql        → dashboard_stats(p_user_id) function behind the stat cards (feature 15, applied via InsForge)
+│       └── 003_cover_letters.sql          → cover_letter, cover_letter_generated_at, cover_letter_edited_at, cover_letter_tone on jobs (feature 19, applied via InsForge)
 ├── actions/
 │   ├── auth.ts                            → OAuth sign-in Server Actions (Google, GitHub)
 │   ├── profile.ts                         → saveProfile — validates the form, computes completion, writes profiles
+│   ├── coverLetter.ts                     → saveCoverLetterEdits(jobId, text) — returns the stored (tidied) text so the card can show it; validates, saves the user's own changes to an existing letter, stamps cover_letter_edited_at (feature 19)
 │   └── jobs.ts                            → Job status updates
 ├── components/
 │   ├── ui/                                → shadcn/ui components only
@@ -110,10 +114,11 @@
 │   │   ├── PersonalInfoSection.tsx / ProfessionalInfoSection.tsx / WorkExperienceSection.tsx
 │   │   │   WorkExperienceCard.tsx / EducationSection.tsx / JobPreferencesSection.tsx
 │   │   └── ProfileSection.tsx, FormField.tsx, SelectInput.tsx, TagInput.tsx, fieldStyles.ts
+│   ├── shared/
+│   │   └── FilterSelect.tsx               → Controlled styled native select (label, value, onChange, optional emphasized / disabled): the Find Jobs filters and the Cover Letter tone picker
 │   ├── find-jobs/
 │   │   ├── SearchControls.tsx             → Search card: job title, location, Find Jobs, result banner
-│   │   ├── JobFilters.tsx                 → Filter bar (client): text filter + FilterSelect dropdowns; writes `?q&match&sort` to the URL
-│   │   ├── FilterSelect.tsx               → Controlled styled native select used by JobFilters
+│   │   ├── JobFilters.tsx                 → Filter bar (client): text filter + FilterSelect dropdowns (components/shared); writes `?q&match&sort` to the URL
 │   │   ├── JobsTable.tsx                  → Jobs table (+ empty states: no jobs yet / nothing matches the filters); the role links to /find-jobs/[id], stretched over the row
 │   │   ├── MatchScoreBar.tsx              → Colour coded score bar + percentage (SVG, no inline style)
 │   │   └── JobsPagination.tsx             → "Showing x to y of z" + page links (next/link, filters kept)
@@ -124,6 +129,7 @@
 │       ├── SkillsComparison.tsx           → "You have" / "Gap skills" chips
 │       ├── JobDescription.tsx             → Job Description card (Adzuna snippet)
 │       ├── CompanyResearch.tsx            → Company Research card (client): Research / Refresh button, status + error line, empty state, then DossierView
+│       ├── CoverLetter.tsx                → Cover Letter card (client): tone dropdown, Generate / Regenerate (replace confirm when edited), editable textarea, word count, Copy, Save changes, error line (+ profile link on a 422); keyed on the letter's generatedAt by the page
 │       ├── DossierView.tsx                → The 9-field dossier (overview, tech chips, culture, why this role, Your Edge, gaps, questions, prep, sources)
 │       ├── JobActions.tsx                 → Apply Now at {company}
 │       └── SectionIcon.tsx                → Round icon that leads a card heading
@@ -132,12 +138,13 @@
 │   │   ├── client.ts                      → InsForge browser client instance
 │   │   ├── server.ts                      → InsForge server client + getUser()
 │   │   ├── profile.ts                     → getProfile() — reads the profiles row, creating it on first use
-│   │   ├── jobs.ts                        → getSavedJobScores() (repeat-search lookup), listJobs(query) — filtered, sorted, 20 per page (Find Jobs page) — getJobDetail(id) (job details page, with the saved dossier), getJobForResearch(id) and saveCompanyResearch()
+│   │   ├── jobs.ts                        → getSavedJobScores() (repeat-search lookup), listJobs(query) — filtered, sorted, 20 per page (Find Jobs page) — getJobDetail(id) (job details page, with the saved dossier), getJobForResearch(id) and saveCompanyResearch() — getJobForCoverLetter(id), saveCoverLetter() (replaces the letter, clears the edit stamp) and saveEditedCoverLetter() (only when a letter exists); getJobDetail() also returns the saved letter
 │   │   ├── dashboard.ts                   → getDashboardStats(): calls the dashboard_stats rpc, null (logged) on failure; getRecentActivity(): latest completed agent_runs + researched jobs, merged, [] (logged) on failure
 │   │   ├── agentLogs.ts                   → logAgent(): one line to agent_logs, never throws
 │   │   └── resumeStorage.ts               → downloadResume(): reads the private resume with retries and real-error logging (file, extract and generate routes)
 │   ├── companyResearch.ts                 → Pure research helpers: homepage choice (job-board denylist, registrableDomain, isSafePublicHost, cleanCompanyName, parseWebsiteAnswer), pickSubPages(), normalizeDossier()/parseModelDossier(), limits
 │   ├── researchSchema.ts                  → zod body schema for POST /api/agent/research
+│   ├── coverLetter.ts / coverLetterSchema.ts / coverLetterContent.ts → Cover letter limits (5 per 10 min, 400 to 5,000 characters), route path, error texts, resolveTone() and hasEnoughForCoverLetter(); zod schemas for the route body and the save action; normalizeCoverLetter() (untrusted GPT-4o JSON → trimmed, capped text; rejects empty, too-short and placeholder answers)
 │   ├── adzuna.ts                          → Adzuna client: searchJobs(), detectCountry(), formatSalary(), toJobType()
 │   ├── jobScoring.ts                      → normalizeJobScore(): untrusted GPT-4o JSON → safe JobScore
 │   ├── findJobs.ts / findJobsSchema.ts / findJobsMessage.ts → Find Jobs path + limits, zod body schema, banner text
@@ -237,6 +244,28 @@ Dossier saved to jobs.company_research
 Page data revalidated
 ```
 
+### Cover Letter (API Route + Server Action)
+
+```
+User clicks Generate Cover Letter / Regenerate on the job details page
+        ↓
+API route in app/api/agent/cover-letter
+        ↓
+Session (401) → job scoped to user_id (404) → saved profile
+        ↓
+Profile needs a full name and skills or a work role (422) → rate limit, 5 per 10 minutes (429)
+        ↓
+Calls agent/coverLetter.ts — one GPT-4o call: posting + profile + dossier (if any) + tone (the card's pick from the request body, else the profile's, else formal)
+        ↓
+Letter saved to jobs.cover_letter (+ generated_at, tone; edited_at cleared) — nothing saved if GPT-4o fails (503 / 500)
+        ↓
+cover_letter_generated event; router.refresh()
+
+User edits the letter and clicks Save changes
+        ↓
+Server Action saveCoverLetterEdits (no model call) → jobs.cover_letter + cover_letter_edited_at → revalidatePath
+```
+
 ### Resume Operations (API Routes)
 
 ```
@@ -331,11 +360,15 @@ Rows are created lazily by `getProfile()` in `lib/insforge/profile.ts` — InsFo
 | missing_skills     | text[]      | Skills user lacks                              |
 | company_research   | jsonb       | Company dossier from research agent            |
 | researched_at      | timestamptz | When company_research was saved (activity feed)|
+| cover_letter       | text        | The cover letter — generated, then possibly edited by the user. One per job (feature 19) |
+| cover_letter_generated_at | timestamptz | When GPT-4o wrote it; the card is keyed on this |
+| cover_letter_edited_at | timestamptz | When the user last saved their own changes; null until then, cleared on regenerate |
+| cover_letter_tone  | text        | Tone it was written in (formal / casual / enthusiastic), so the card stays right after the profile tone changes |
 | found_at           | timestamptz |                                                |
 
 `about_role` holds Adzuna's description snippet. `responsibilities`, `requirements`, `nice_to_have`, `benefits` and `about_company` are nullable and stay empty for Adzuna jobs (reserved for a future full-description fetch or URL import).
 
-Schema source of truth: `db/migrations/001_initial_schema.sql` (applied via InsForge `run-raw-sql`); `002_dashboard_stats.sql` adds the `dashboard_stats(p_user_id uuid)` function (see below). All four tables have RLS: one `for all` policy per table limiting `authenticated` to its own rows (`id = auth.uid()` on profiles, `user_id = auth.uid()` elsewhere).
+Schema source of truth: `db/migrations/001_initial_schema.sql` (applied via InsForge `run-raw-sql`); `002_dashboard_stats.sql` adds the `dashboard_stats(p_user_id uuid)` function (see below); `003_cover_letters.sql` adds the four cover letter columns to `jobs` (the existing policy covers them). All four tables have RLS: one `for all` policy per table limiting `authenticated` to its own rows (`id = auth.uid()` on profiles, `user_id = auth.uid()` elsewhere).
 
 ### `dashboard_stats(p_user_id uuid)` (function, feature 15)
 
@@ -477,6 +510,7 @@ Rules the AI agent must never violate:
 - All InsForge server-side writes use `createInsforgeServer()` — never the browser client.
 - No hardcoded hex values or raw Tailwind color classes in components — use CSS variables from ui-tokens.md.
 - Every Stagehand action is wrapped in try/catch. Failures are logged to agent_logs, never thrown to crash the run.
+- A cover letter has no fallback: if GPT-4o fails or its answer fails `normalizeCoverLetter`, nothing is saved and the user sees an error. A letter is never created by the save-edits action.
 - Company research always returns a dossier — even if browser research fails, GPT-4o synthesizes from company name and job description alone. Never return empty.
 - Browserbase sessions are always closed with stagehand.close() when done — never leave sessions open.
 - Always scope InsForge queries to the current user_id — never query without a user filter.

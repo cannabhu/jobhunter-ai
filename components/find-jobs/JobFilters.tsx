@@ -3,7 +3,7 @@
 import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
-import { FilterSelect } from "@/components/find-jobs/FilterSelect";
+import { FilterSelect } from "@/components/shared/FilterSelect";
 import { MAX_SEARCH_TEXT_LENGTH } from "@/lib/findJobs";
 import { JOB_SORTS, MATCH_FILTERS, buildJobsHref } from "@/lib/jobsQuery";
 import type { JobSort, JobsQuery, MatchFilter } from "@/types";

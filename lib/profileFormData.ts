@@ -81,5 +81,6 @@ export function readFormValues(formData: FormData): ProfileFormValues {
     remotePreference: readText(formData, "remotePreference") as ProfileFormValues["remotePreference"],
     salaryExpectation: readText(formData, "salaryExpectation"),
     preferredLocations: readText(formData, "preferredLocations"),
+    coverLetterTone: readText(formData, "coverLetterTone") as ProfileFormValues["coverLetterTone"],
   };
 }
