@@ -130,6 +130,26 @@ export async function POST(req: NextRequest) {
 - Session refresh for API routes comes from `proxy.ts` (it covers all of `/api` except `/api/auth/*`) — call `getUser()` and return 401 JSON if it is null
 - A GET route that a browser opens directly (e.g. a file View link) redirects to `/login?error=session` on a null user instead of returning JSON
 
+### Streamed routes (the six AI actions)
+
+A route that does long AI work streams its progress instead of returning one JSON body:
+
+```typescript
+// after every check that has a real status (401, 400, 404, 422, 429) has passed:
+return streamProgress<Data, StageId>("agent/cover-letter", async (report) => {
+  report({ type: "stage", stage: "write" });
+  // ... work; a failure is `return { ok: false, error: "user-facing message" }`
+  return { ok: true, data };
+});
+```
+
+- Checks before the stream return `{ success: false, error }` JSON with a real status, exactly as above. After the first byte the status is 200, so failures become an `error` event with the same user-facing message.
+- Events: `stage`, `count` (only a real number), then exactly one `done` or `error`. Stage ids come from the action's `*_STAGES` constant (first entry is always `prepare`, which only the browser drives); never invent a stage the server did not reach.
+- Order stays save, then PostHog (flush before returning), then `done`.
+- The work must not depend on the client staying connected: no `req.signal` aborts, and `report` is best-effort (it never throws).
+- Clients call `useProgressAction()` and render `ProgressSteps`; they do not read the stream themselves. `done.data` is trusted like any other JSON from our own server.
+- Agents take `report?: ProgressListener<StageId>` as an optional last parameter and call `report?.(...)`; they never import from `lib/progressStream.ts`.
+
 ---
 
 ## Server Actions

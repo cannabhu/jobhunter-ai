@@ -115,7 +115,10 @@
 │   │   │   WorkExperienceCard.tsx / EducationSection.tsx / JobPreferencesSection.tsx
 │   │   └── ProfileSection.tsx, FormField.tsx, SelectInput.tsx, TagInput.tsx, fieldStyles.ts
 │   ├── shared/
-│   │   └── FilterSelect.tsx               → Controlled styled native select (label, value, onChange, optional emphasized / disabled): the Find Jobs filters and the Cover Letter tone picker
+│   │   ├── FilterSelect.tsx               → Controlled styled native select (label, value, onChange, optional emphasized / disabled): the Find Jobs filters and the Cover Letter tone picker
+│   │   ├── AsyncActionButton.tsx          → Busy button for the long AI actions (spinner, busy label, m:ss timer, fixed width)
+│   │   ├── ProgressSteps.tsx              → Step checklist shown while an AI action runs (done / current / skipped / upcoming, "4 of 10"); `card` and `inline` variants
+│   │   └── useProgressAction.ts           → Client hook: runs a streamed action and tracks stage, reached stages and counts for ProgressSteps
 │   ├── find-jobs/
 │   │   ├── SearchControls.tsx             → Search card: job title, location, Find Jobs, result banner
 │   │   ├── JobFilters.tsx                 → Filter bar (client): text filter + FilterSelect dropdowns (components/shared); writes `?q&match&sort` to the URL
@@ -166,6 +169,9 @@
 │   ├── profileMapping.ts                  → profiles row ↔ form values / update payload
 │   ├── resume.ts                          → Resume size limit, route paths, extraction limits shared by client and server
 │   ├── rateLimit.ts                       → In-memory per-user sliding-window limiter for paid API routes
+│   ├── progress.ts                        → Streamed-progress protocol, client-safe: ProgressEvent (stage / count / done / error), StageDef, ProgressListener, PREPARE_STAGE_ID, encodeEvent()
+│   ├── progressStream.ts                  → Server: streamProgress(route, run) turns a route's work into an NDJSON response; the work always finishes, even if the client leaves
+│   ├── progressClient.ts                  → Client: runProgressAction() POSTs, reads the NDJSON lines, returns { ok, data } or { ok: false, error, status, interrupted }
 │   ├── routes.ts                          → SIGNED_IN_HOME — post-login destination + homepage CTA (now /dashboard); FIND_JOBS_PAGE_PATH
 │   ├── posthog-server.ts                  → PostHog server client (job_search_started, job_found); shut down in the same function
 │   ├── posthog-query.ts                   → runHogQL: reads events back through PostHog's query API (personal API key, server-only); null on failure
@@ -265,6 +271,24 @@ User edits the letter and clicks Save changes
         ↓
 Server Action saveCoverLetterEdits (no model call) → jobs.cover_letter + cover_letter_edited_at → revalidatePath
 ```
+
+### Streamed progress (all six AI routes)
+
+```
+Browser: runProgressAction() POSTs; the checklist shows "prepare" (the only step the browser drives)
+        ↓
+Route checks: session (401) → body (400) → lookups (404) → profile (422) → rate limit (429)
+        ↓ any failure here: plain JSON { success: false, error } with the real status
+Route returns streamProgress(...): 200, application/x-ndjson, one JSON object per line
+        ↓
+stage / count events as the work really passes each step (agents take an optional ProgressListener)
+        ↓
+save → PostHog (flushed) → one terminal event: done { data } or error { error }
+        ↓
+Client: done → router.refresh(); error → message; no terminal event → "interrupted", refresh anyway
+```
+
+Stage lists sit with each action's constants (`COVER_LETTER_STAGES`, `RESEARCH_STAGES`, `FIND_JOBS_STAGES`, `RESUME_EXTRACT_STAGES`, `RESUME_GENERATE_STAGES`). A stage the run never reached renders as skipped. After the first byte the status is always 200, so a failure there is an `error` event; the cover letter still releases its rate-limit turn on an OpenAI outage before sending it.
 
 ### Resume Operations (API Routes)
 
@@ -506,6 +530,7 @@ Rules the AI agent must never violate:
 
 - API routes contain no UI logic. Components contain no DB logic.
 - Agent code in `/agent` never imports from `/components` or `/actions`.
+- A streamed route does every check that has a real status (401, 400, 404, 422, 429) before calling `streamProgress`, and the work inside it always finishes and saves even if the client disconnects. Agents report progress only through an optional `ProgressListener`; they never know about streams or HTTP.
 - Server Actions never call agent functions. Agent functions are only called from API routes.
 - All InsForge server-side writes use `createInsforgeServer()` — never the browser client.
 - No hardcoded hex values or raw Tailwind color classes in components — use CSS variables from ui-tokens.md.

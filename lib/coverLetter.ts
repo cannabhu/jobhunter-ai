@@ -1,8 +1,18 @@
+import type { StageDef } from "@/lib/progress";
 import { COVER_LETTER_TONE_VALUES } from "@/lib/profileConstants";
 import { selectRoles } from "@/lib/resumeContent";
 import type { CoverLetterTone, ProfileFormValues } from "@/types";
 
 export const COVER_LETTER_PATH = "/api/agent/cover-letter";
+
+/** The steps of one run, in order. "prepare" runs in the browser until the route's checks pass; the route reports the rest. */
+export const COVER_LETTER_STAGES = [
+  { id: "prepare", label: "Checking your profile and this job" },
+  { id: "write", label: "Writing your letter" },
+  { id: "save", label: "Saving the letter" },
+] as const satisfies readonly StageDef[];
+
+export type CoverLetterStageId = (typeof COVER_LETTER_STAGES)[number]["id"];
 
 /** At most this many letters per user in the window. Separate from the research limit. */
 export const COVER_LETTER_LIMIT = 5;

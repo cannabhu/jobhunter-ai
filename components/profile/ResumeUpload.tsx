@@ -2,16 +2,20 @@
 
 import { CloudUpload, ExternalLink, FileText, LoaderCircle, Sparkles } from "lucide-react";
 import { AsyncActionButton } from "@/components/shared/AsyncActionButton";
+import { ProgressSteps } from "@/components/shared/ProgressSteps";
+import { useProgressAction } from "@/components/shared/useProgressAction";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type DragEvent } from "react";
 import {
   MAX_RESUME_SIZE_BYTES,
   RESUME_EXTRACT_PATH,
+  RESUME_EXTRACT_STAGES,
   RESUME_FILE_PATH,
   RESUME_GENERATE_PATH,
+  RESUME_GENERATE_STAGES,
   RESUME_UPLOAD_PATH,
 } from "@/lib/resume";
-import type { ExtractedProfile, ExtractResumeResponse, GenerateResumeResponse } from "@/types";
+import type { ExtractedProfile } from "@/types";
 
 const UPLOAD_FAILED = "We couldn't upload your resume. Please try again.";
 const EXTRACT_FAILED = "We couldn't read your resume. Please try again.";
@@ -41,6 +45,8 @@ export function ResumeUpload({ hasResume, hasUnsavedChanges, onExtracted }: Prop
   const [confirmingReplace, setConfirmingReplace] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [generated, setGenerated] = useState(false);
+  const { progress: extractProgress, run: runExtract } = useProgressAction<ExtractedProfile>(EXTRACT_FAILED);
+  const { progress: generateProgress, run: runGenerate } = useProgressAction<null>(GENERATE_FAILED);
   const uploading = uploadingName !== null;
   const busy = uploading || extracting || generating;
 
@@ -72,16 +78,12 @@ export function ResumeUpload({ hasResume, hasUnsavedChanges, onExtracted }: Prop
     setFilledCount(null);
     setExtracting(true);
     try {
-      const response = await fetch(RESUME_EXTRACT_PATH, { method: "POST" });
-      const result: ExtractResumeResponse | null = await response.json().catch(() => null);
-      if (!result || !result.success) {
-        setExtractError(result && !result.success ? result.error : EXTRACT_FAILED);
+      const outcome = await runExtract(RESUME_EXTRACT_PATH);
+      if (!outcome.ok) {
+        setExtractError(outcome.error);
         return;
       }
-      setFilledCount(onExtracted(result.data));
-    } catch (extractionError) {
-      console.error("[ResumeUpload]", extractionError);
-      setExtractError(EXTRACT_FAILED);
+      setFilledCount(onExtracted(outcome.data));
     } finally {
       setExtracting(false);
     }
@@ -93,17 +95,15 @@ export function ResumeUpload({ hasResume, hasUnsavedChanges, onExtracted }: Prop
     setGenerated(false);
     setGenerating(true);
     try {
-      const response = await fetch(RESUME_GENERATE_PATH, { method: "POST" });
-      const result: GenerateResumeResponse | null = await response.json().catch(() => null);
-      if (!result || !result.success) {
-        setGenerateError(result && !result.success ? result.error : GENERATE_FAILED);
+      const outcome = await runGenerate(RESUME_GENERATE_PATH);
+      if (!outcome.ok) {
+        setGenerateError(outcome.error);
+        // An interrupted stream may still have saved the resume, so show whatever is on file.
+        if (outcome.interrupted) router.refresh();
         return;
       }
       setGenerated(true);
       router.refresh();
-    } catch (generationError) {
-      console.error("[ResumeUpload]", generationError);
-      setGenerateError(GENERATE_FAILED);
     } finally {
       setGenerating(false);
     }
@@ -235,9 +235,7 @@ export function ResumeUpload({ hasResume, hasUnsavedChanges, onExtracted }: Prop
             />
           </div>
           {extracting ? (
-            <p role="status" className="mt-3 text-sm text-text-secondary">
-              Reading your resume and filling in your details. This usually takes under a minute.
-            </p>
+            <ProgressSteps stages={RESUME_EXTRACT_STAGES} progress={extractProgress} label="Progress reading your resume" variant="inline" />
           ) : null}
           {extractError ? (
             <p role="alert" className="mt-3 text-sm text-error">
@@ -297,9 +295,7 @@ export function ResumeUpload({ hasResume, hasUnsavedChanges, onExtracted }: Prop
         ) : null}
 
         {generating ? (
-          <p role="status" className="mt-3 text-sm text-text-secondary">
-            Writing your resume from your saved profile. This usually takes under a minute.
-          </p>
+          <ProgressSteps stages={RESUME_GENERATE_STAGES} progress={generateProgress} label="Progress generating your resume" variant="inline" />
         ) : null}
         {hasUnsavedChanges ? (
           <p role="note" className="mt-3 rounded-md border border-border bg-surface-secondary px-4 py-3 text-sm text-text-secondary">

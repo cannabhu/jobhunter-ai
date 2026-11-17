@@ -7,8 +7,10 @@ import { Search, Sparkles } from "lucide-react";
 import { useReportListingPending } from "@/components/find-jobs/JobsListingContext";
 import { labelClass } from "@/components/profile/fieldStyles";
 import { AsyncActionButton } from "@/components/shared/AsyncActionButton";
-import { FIND_JOBS_PATH, MAX_SEARCH_TEXT_LENGTH } from "@/lib/findJobs";
-import type { FindJobsResponse } from "@/types";
+import { ProgressSteps } from "@/components/shared/ProgressSteps";
+import { useProgressAction } from "@/components/shared/useProgressAction";
+import { FIND_JOBS_PATH, FIND_JOBS_STAGES, MAX_SEARCH_TEXT_LENGTH } from "@/lib/findJobs";
+import type { FindJobsResult } from "@/types";
 
 const inputClass =
   "w-full rounded-md border border-border bg-surface py-2.5 text-sm text-text-primary shadow-card placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-70";
@@ -23,6 +25,7 @@ export function SearchControls() {
   const [refreshing, startRefresh] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<SearchError | null>(null);
+  const { progress, run } = useProgressAction<FindJobsResult>(SEARCH_FAILED);
   // Held until the refreshed page has the new rows, so the button and the table placeholders do not drop out early.
   const busy = pending || refreshing;
   useReportListingPending("search", busy);
@@ -44,21 +47,15 @@ export function SearchControls() {
     setMessage(null);
     setError(null);
     try {
-      const response = await fetch(FIND_JOBS_PATH, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobTitle, location }),
-      });
-      const result: FindJobsResponse | null = await response.json().catch(() => null);
-      if (!response.ok || !result?.success) {
-        setError({ message: result && !result.success ? result.error : SEARCH_FAILED, needsProfile: response.status === 422 });
+      const outcome = await run(FIND_JOBS_PATH, { jobTitle, location });
+      if (!outcome.ok) {
+        setError({ message: outcome.error, needsProfile: outcome.status === 422 });
+        // An interrupted stream may still have saved the jobs, so show whatever is there.
+        if (outcome.interrupted) startRefresh(() => router.refresh());
         return;
       }
-      setMessage(result.data.message);
+      setMessage(outcome.data.message);
       startRefresh(() => router.refresh());
-    } catch (searchError) {
-      console.error("[SearchControls]", searchError);
-      setError({ message: SEARCH_FAILED, needsProfile: false });
     } finally {
       setPending(false);
     }
@@ -110,11 +107,7 @@ export function SearchControls() {
           className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md bg-accent px-5 text-sm font-medium text-accent-foreground shadow-card hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-70"
         />
       </form>
-      {pending ? (
-        <p role="status" className="mt-4 text-sm text-text-secondary">
-          Searching and scoring jobs against your profile. This can take up to a minute.
-        </p>
-      ) : null}
+      {pending ? <ProgressSteps stages={FIND_JOBS_STAGES} progress={progress} label="Progress searching for jobs" variant="inline" /> : null}
       {message ? (
         <p
           role="status"

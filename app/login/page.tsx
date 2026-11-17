@@ -1,9 +1,16 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { signInWithGitHub, signInWithGoogle } from "@/actions/auth";
 import { SignInFailedTracker } from "@/components/analytics/SignInFailedTracker";
 import { OAuthSignInButtons } from "@/components/auth/OAuthSignInButtons";
+
+export const metadata: Metadata = {
+  title: "Sign in — JobPilot",
+  description: "Sign in to JobPilot with Google or GitHub to find jobs, research companies and apply with confidence.",
+  alternates: { canonical: "/login" },
+};
 
 async function ErrorNotice({ searchParams }: { searchParams: PageProps<"/login">["searchParams"] }) {
   const { error } = await searchParams;

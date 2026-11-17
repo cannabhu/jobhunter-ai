@@ -10,6 +10,8 @@ import {
 import { logAgent } from "@/lib/insforge/agentLogs";
 import { getSavedJobScores } from "@/lib/insforge/jobs";
 import type { createInsforgeServer } from "@/lib/insforge/server";
+import type { FindJobsStageId } from "@/lib/findJobs";
+import type { ProgressListener } from "@/lib/progress";
 import { MATCH_THRESHOLD } from "@/lib/utils";
 import type { JobScore, ProfileRow } from "@/types";
 
@@ -45,9 +47,11 @@ export async function discoverJobs(
   jobTitle: string,
   location: string,
   profile: ProfileRow,
+  report?: ProgressListener<FindJobsStageId>,
 ): Promise<DiscoverySuccess | DiscoveryFailure> {
   try {
     const country = detectCountry(location);
+    report?.({ type: "stage", stage: "search" });
     await logAgent(insforge, runId, userId, "info", `Searching Adzuna (${country}) for "${jobTitle}"${location ? ` in ${location}` : ""}.`);
 
     const results = await searchJobs(jobTitle, location, country);
@@ -64,7 +68,20 @@ export async function discoverJobs(
 
     const scored: ScoredJob[] = [];
     let unavailableCount = 0;
-    const outcomes = await Promise.allSettled(newJobs.map((job) => scoreJob(job, profile)));
+    let settled = 0;
+    if (newJobs.length > 0) {
+      report?.({ type: "stage", stage: "score" });
+      report?.({ type: "count", stage: "score", done: 0, total: newJobs.length });
+    }
+    // The calls run in parallel, so the count goes up as each one settles, whether it scored or failed.
+    const outcomes = await Promise.allSettled(
+      newJobs.map((job) =>
+        scoreJob(job, profile).finally(() => {
+          settled += 1;
+          report?.({ type: "count", stage: "score", done: settled, total: newJobs.length });
+        }),
+      ),
+    );
     outcomes.forEach((outcome, index) => {
       const job = newJobs[index];
       if (outcome.status === "fulfilled" && outcome.value) {
@@ -92,6 +109,7 @@ export async function discoverJobs(
     }
 
     if (scored.length > 0) {
+      report?.({ type: "stage", stage: "save" });
       const { error } = await insforge.database.from("jobs").insert(
         scored.map(({ job, score }) => ({
           user_id: userId,

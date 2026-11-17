@@ -7,8 +7,10 @@ import { DossierSkeleton } from "@/components/job-details/DossierSkeleton";
 import { DossierView } from "@/components/job-details/DossierView";
 import { SectionIcon } from "@/components/job-details/SectionIcon";
 import { AsyncActionButton } from "@/components/shared/AsyncActionButton";
-import { RESEARCH_PATH } from "@/lib/companyResearch";
-import type { CompanyDossier, ResearchCompanyResponse } from "@/types";
+import { ProgressSteps } from "@/components/shared/ProgressSteps";
+import { useProgressAction } from "@/components/shared/useProgressAction";
+import { RESEARCH_PATH, RESEARCH_STAGES } from "@/lib/companyResearch";
+import type { CompanyDossier } from "@/types";
 
 type Props = {
   jobId: string;
@@ -28,6 +30,7 @@ export function CompanyResearch({ jobId, company, dossier, researchedLabel }: Pr
   const [pending, setPending] = useState(false);
   const [refreshing, startRefresh] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const { progress, run } = useProgressAction<CompanyDossier>(RESEARCH_FAILED);
   // Held until the refreshed page has the saved dossier, so the card never flashes back to its old state.
   const busy = pending || refreshing;
 
@@ -36,20 +39,14 @@ export function CompanyResearch({ jobId, company, dossier, researchedLabel }: Pr
     setPending(true);
     setError(null);
     try {
-      const response = await fetch(RESEARCH_PATH, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId }),
-      });
-      const result: ResearchCompanyResponse | null = await response.json().catch(() => null);
-      if (!response.ok || !result?.success) {
-        setError(result && !result.success ? result.error : RESEARCH_FAILED);
+      const outcome = await run(RESEARCH_PATH, { jobId });
+      if (!outcome.ok) {
+        setError(outcome.error);
+        // An interrupted stream may still have saved the dossier, so show whatever is there.
+        if (outcome.interrupted) startRefresh(() => router.refresh());
         return;
       }
       startRefresh(() => router.refresh());
-    } catch (researchError) {
-      console.error("[CompanyResearch]", researchError);
-      setError(RESEARCH_FAILED);
     } finally {
       setPending(false);
     }
@@ -76,11 +73,7 @@ export function CompanyResearch({ jobId, company, dossier, researchedLabel }: Pr
         />
       </div>
 
-      {busy ? (
-        <p role="status" className="border-b border-border px-6 py-3 text-sm text-text-secondary">
-          Reading {company}&apos;s website and writing your briefing. This can take up to two minutes.
-        </p>
-      ) : null}
+      {busy ? <ProgressSteps stages={RESEARCH_STAGES} progress={progress} label={`Progress researching ${company}`} /> : null}
       {error ? (
         <p role="alert" className="border-b border-border px-6 py-3 text-sm text-error">
           {error}

@@ -378,5 +378,38 @@ Client component on `/find-jobs/[id]`, between Company Research and Apply Now. N
 | Jobs results card while changing | filters or page: table replaced by `JobsTableSkeleton`, footer `opacity-60`. Search running: 3 skeleton rows above the existing rows (only the skeleton when there are no jobs). Card has `aria-busy` |
 | Letter and dossier placeholders | `LetterSkeleton` (meta line and three paragraphs inside a bordered box, `px-6 py-6`) replaces the textarea; `DossierSkeleton` (text and a 2-column grid of heading and two lines) replaces the dossier. Both appear while the action runs |
 | Busy button (`AsyncActionButton`) | Same classes as before (the caller passes `className`). Busy: icon becomes `LoaderCircle size-4 animate-spin` (`spinnerClassName` for a coloured one), label becomes "Searching...", "Writing...", "Researching...", "Reading your resume…" or "Generating…" followed by an `m:ss` timer (`tabular-nums`, `aria-hidden`). Idle and busy labels share one grid cell (`col-start-1 row-start-1`, the hidden one `invisible`), so the width is the longer label and never changes. `aria-busy` is set |
-| Status line while busy | `role="status"`, `text-sm text-text-secondary`: "Searching and scoring jobs…" (Find Jobs, in the card), "Writing your cover letter for {company}… usually under a minute" (`border-b border-border px-6 py-3`, as the research line), research line unchanged, and profile lines `mt-3` for Extract and Generate Resume |
+| Progress checklist (`ProgressSteps`) | Replaces the old static status lines. Full entry below ("Progress checklist") |
+| Status line while busy | Superseded by the progress checklist above. The `border-b border-border px-6 py-3` text lines are gone |
 
+### Progress checklist (`ProgressSteps`) — `components/shared/ProgressSteps.tsx`
+
+File: `components/shared/ProgressSteps.tsx` (state from `components/shared/useProgressAction.ts`)
+Last updated: 2026-11-17
+
+Shown while one of the six AI actions runs, in place of the old static status line. Two variants share the same step markup.
+
+| Property | Class |
+| --- | --- |
+| Wrapper, `card` variant | `border-b border-border px-6 py-4` (sits under a card header band: cover letter, company research) |
+| Wrapper, `inline` variant | `mt-3 rounded-md border border-border bg-surface-secondary px-4 py-3` (boxed note inside a form card: Find Jobs search, profile Extract and Generate) |
+| Step list | `flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-x-6 sm:gap-y-2` |
+| Step row | `flex items-center gap-2 text-sm`; icon in a `size-4` box |
+| Text, done | `text-text-secondary` |
+| Text, current | `font-medium text-text-primary` |
+| Text, skipped / upcoming | `text-text-muted` |
+| Count ("4 of 10") | `tabular-nums text-text-secondary` |
+| Icon, done | `Check size-4 text-success-foreground` |
+| Icon, current | `LoaderCircle size-4 text-accent motion-safe:animate-spin` |
+| Icon, skipped | `Minus size-4 text-text-muted` |
+| Icon, upcoming | `size-1.5 rounded-full bg-border` dot |
+| Hover / focus | none (not interactive) |
+| Shadow | none |
+| Accent usage | the spinner only |
+
+**Pattern notes:**
+- State is never colour alone: each label ends with an `sr-only` word ("done", "in progress", "skipped", "waiting"), the wrapper is `role="status"` with an `aria-label`, and the spinner respects reduced motion.
+- A step is "skipped" only when the server never started it (no website found, nothing new to score). Never fake a step, and show a count only when the server sent a real one.
+- The `inline` wrapper deliberately matches the replace-confirm panel in `ResumeUpload` (`rounded-md border border-border bg-surface-secondary px-4 py-3`). Use the same panel classes for any other boxed note in a form card.
+- Use `card` only directly under a card header band; anywhere else use `inline`. Do not add a third wrapper style.
+- Success tick uses `text-success-foreground`, the same token as the "Saved" label and the success banners, not `text-success`.
+- Keep the skeleton placeholder (LetterSkeleton, DossierSkeleton, JobsTableSkeleton rows) alongside it; the checklist replaces the status text only.

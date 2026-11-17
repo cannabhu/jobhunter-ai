@@ -3,14 +3,16 @@ import { PDFParse } from "pdf-parse";
 import { extractProfileFromResumeText, ResumeExtractionUnavailableError } from "@/agent/resumeExtractor";
 import { downloadResume } from "@/lib/insforge/resumeStorage";
 import { createInsforgeServer, getUser } from "@/lib/insforge/server";
+import { streamProgress } from "@/lib/progressStream";
 import { checkRateLimit } from "@/lib/rateLimit";
 import {
   EXTRACT_LIMIT,
   EXTRACT_WINDOW_MS,
   MIN_RESUME_TEXT_LENGTH,
   RESUME_UNREADABLE_ERROR,
+  type ResumeExtractStageId,
 } from "@/lib/resume";
-import type { ExtractResumeResponse } from "@/types";
+import type { ExtractedProfile, ExtractResumeResponse } from "@/types";
 
 // The OpenAI call can take ~45s on a slow response; give the route room on platforms that enforce a limit.
 export const maxDuration = 60;
@@ -33,7 +35,10 @@ async function readPdfText(pdf: Buffer): Promise<string> {
   }
 }
 
-/** Reads the signed-in user's stored resume and returns profile fields for the form. Writes nothing. */
+/**
+ * Reads the signed-in user's stored resume and returns profile fields for the form. Writes nothing.
+ * The session and rate-limit checks answer as JSON with a real status; the reading and extracting stream as NDJSON.
+ */
 export async function POST() {
   try {
     const user = await getUser();
@@ -47,24 +52,35 @@ export async function POST() {
     }
 
     const insforge = await createInsforgeServer();
-    // The key comes from the session user, never from the request.
-    const download = await downloadResume(insforge, user.id, "resume/extract");
-    if (!download.ok) {
-      return download.status === 404
-        ? fail("Upload a resume first, then try again.", 404)
-        : fail("We couldn't load your resume right now. Please try again in a moment.", 502);
-    }
 
-    const text = await readPdfText(Buffer.from(await download.file.arrayBuffer()));
-    if (text.length < MIN_RESUME_TEXT_LENGTH) return fail(RESUME_UNREADABLE_ERROR, 422);
+    // The checks have passed, so from here the status is 200 and a failure is an `error` event.
+    return streamProgress<ExtractedProfile, ResumeExtractStageId>("resume/extract", async (report) => {
+      try {
+        report({ type: "stage", stage: "read" });
+        // The key comes from the session user, never from the request.
+        const download = await downloadResume(insforge, user.id, "resume/extract");
+        if (!download.ok) {
+          return {
+            ok: false,
+            error: download.status === 404 ? "Upload a resume first, then try again." : "We couldn't load your resume right now. Please try again in a moment.",
+          };
+        }
 
-    const data = await extractProfileFromResumeText(text);
-    return NextResponse.json<ExtractResumeResponse>({ success: true, data });
+        const text = await readPdfText(Buffer.from(await download.file.arrayBuffer()));
+        if (text.length < MIN_RESUME_TEXT_LENGTH) return { ok: false, error: RESUME_UNREADABLE_ERROR };
+
+        report({ type: "stage", stage: "extract" });
+        return { ok: true, data: await extractProfileFromResumeText(text) };
+      } catch (error) {
+        // Already logged by the extractor, in a form that leaves out the response headers.
+        if (error instanceof ResumeExtractionUnavailableError) {
+          return { ok: false, error: "Reading your resume is temporarily unavailable. Please try again later." };
+        }
+        console.error("[resume/extract]", error);
+        return { ok: false, error: "We couldn't read your resume. Please try again." };
+      }
+    });
   } catch (error) {
-    // Already logged by the extractor, in a form that leaves out the response headers.
-    if (error instanceof ResumeExtractionUnavailableError) {
-      return fail("Reading your resume is temporarily unavailable. Please try again later.", 503);
-    }
     console.error("[resume/extract]", error);
     return fail("We couldn't read your resume. Please try again.", 500);
   }
