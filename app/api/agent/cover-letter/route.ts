@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     const body: unknown = await req.json().catch(() => null);
     const parsed = coverLetterSchema.safeParse(body);
     if (!parsed.success) return fail("That job could not be found.", 400);
-    const { jobId } = parsed.data;
+    const { jobId, tone } = parsed.data;
 
     const insforge = await createInsforgeServer();
     const job = await getJobForCoverLetter(insforge, user.id, jobId);
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 
     let letter;
     try {
-      letter = await writeCoverLetter(job, profile);
+      letter = await writeCoverLetter(job, profile, tone);
     } catch (error) {
       if (error instanceof CoverLetterUnavailableError) {
         // OpenAI refused or timed out, so no letter and no real cost: the turn is given back. A letter that came back
