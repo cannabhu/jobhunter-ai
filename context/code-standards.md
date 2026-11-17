@@ -273,7 +273,7 @@ All environment variables defined in `.env.local` for development. Never hardcod
 | ------------------------------- | ---------------------- |
 | `NEXT_PUBLIC_INSFORGE_URL`      | lib/insforge/ (client + server) |
 | `NEXT_PUBLIC_INSFORGE_ANON_KEY` | lib/insforge/ (client + server) |
-| `NEXT_PUBLIC_APP_URL`           | actions/auth.ts (OAuth redirect) |
+| `NEXT_PUBLIC_APP_URL`           | actions/auth.ts (OAuth redirect), lib/site.ts (`SITE_URL`: metadataBase, canonical, robots, sitemap). The deployed origin, no trailing slash; unset it falls back to `http://localhost:3000` |
 | `BROWSERBASE_API_KEY`           | agent/research.ts      |
 | `BROWSERBASE_PROJECT_ID`        | agent/research.ts      |
 | `OPENAI_API_KEY`                | agent/ functions       |

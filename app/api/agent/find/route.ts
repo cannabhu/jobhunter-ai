@@ -29,17 +29,18 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Enter a job title to search for.", 400);
     const { jobTitle, location } = parsed.data;
 
+    // The saved profile, not the form on screen: unsaved edits are not part of the score.
+    const profile = await getProfile();
+    if (!profile) return fail("We couldn't load your profile. Please try again.", 500);
+    // Checked before the rate limit, so a request that can't run a search doesn't use up one of the user's turns.
+    if (profile.skills.length === 0 && !profile.current_title?.trim()) return fail(PROFILE_NEEDS_DATA_ERROR, 422);
+
     // Before any Adzuna or model call, so a rejected request costs nothing.
     const limit = checkRateLimit(`find-jobs:${user.id}`, FIND_LIMIT, FIND_WINDOW_MS);
     if (!limit.allowed) {
       const minutes = Math.max(1, Math.ceil(limit.retryAfterMs / 60_000));
       return fail(`You've searched several times recently. Please try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`, 429);
     }
-
-    // The saved profile, not the form on screen: unsaved edits are not part of the score.
-    const profile = await getProfile();
-    if (!profile) return fail("We couldn't load your profile. Please try again.", 500);
-    if (profile.skills.length === 0 && !profile.current_title?.trim()) return fail(PROFILE_NEEDS_DATA_ERROR, 422);
 
     const insforge = await createInsforgeServer();
     const { data: runRows, error: runError } = await insforge.database
