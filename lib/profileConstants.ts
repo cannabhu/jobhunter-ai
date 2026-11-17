@@ -12,6 +12,7 @@ export const DEGREE_VALUES = ["high_school", "associate", "bachelor", "master", 
 export const EXPERIENCE_LEVEL_VALUES = ["junior", "mid", "senior", "lead"] as const;
 export const WORK_AUTHORIZATION_VALUES = ["citizen", "permanent_resident", "visa_required"] as const;
 export const REMOTE_PREFERENCE_VALUES = ["remote", "onsite", "hybrid", "any"] as const;
+export const COVER_LETTER_TONE_VALUES = ["formal", "casual", "enthusiastic"] as const;
 
 export const FIELD_LIMITS = {
   fullName: 120,

@@ -1,10 +1,11 @@
+import { resolveTone } from "@/lib/coverLetter";
 import { normalizeDossier } from "@/lib/companyResearch";
 import type { createInsforgeServer } from "@/lib/insforge/server";
 import { parseJobType, safeHttpUrl } from "@/lib/jobDetails";
 import { buildTextSearchFilter } from "@/lib/jobsQuery";
 import { formatFoundLabel } from "@/lib/relativeTime";
 import { MATCH_THRESHOLD } from "@/lib/utils";
-import type { CompanyDossier, JobDetail, JobListPage, JobsQuery, ResearchJob } from "@/types";
+import type { CompanyDossier, CoverLetterJob, CoverLetterTone, JobDetail, JobListPage, JobsQuery, ResearchJob, SavedCoverLetter } from "@/types";
 
 type InsforgeServer = Awaited<ReturnType<typeof createInsforgeServer>>;
 
@@ -140,7 +141,24 @@ type JobDetailRow = {
   found_at: string;
   company_research: unknown;
   researched_at: string | null;
+  cover_letter: string | null;
+  cover_letter_generated_at: string | null;
+  cover_letter_edited_at: string | null;
+  cover_letter_tone: string | null;
 };
+
+/** The saved letter of a job row, or null when there is none (or no generated time to date it by). */
+function toSavedCoverLetter(row: JobDetailRow): SavedCoverLetter | null {
+  if (typeof row.cover_letter !== "string" || row.cover_letter.trim() === "" || !row.cover_letter_generated_at) return null;
+  return {
+    text: row.cover_letter,
+    tone: resolveTone(row.cover_letter_tone),
+    generatedLabel: formatFoundLabel(row.cover_letter_generated_at),
+    edited: row.cover_letter_edited_at !== null,
+    generatedAt: row.cover_letter_generated_at,
+    editedAt: row.cover_letter_edited_at,
+  };
+}
 
 /**
  * One of the user's saved jobs, or null when it doesn't exist or belongs to someone else (the user filter and RLS
@@ -150,7 +168,7 @@ export async function getJobDetail(insforge: InsforgeServer, userId: string, job
   const { data, error } = await insforge.database
     .from("jobs")
     .select(
-      "id, title, company, location, salary, job_type, about_role, match_score, match_reason, matched_skills, missing_skills, source_url, found_at, company_research, researched_at",
+      "id, title, company, location, salary, job_type, about_role, match_score, match_reason, matched_skills, missing_skills, source_url, found_at, company_research, researched_at, cover_letter, cover_letter_generated_at, cover_letter_edited_at, cover_letter_tone",
     )
     .eq("id", jobId)
     .eq("user_id", userId)
@@ -177,6 +195,7 @@ export async function getJobDetail(insforge: InsforgeServer, userId: string, job
     // The stored jsonb is read like any untrusted value, so an old or hand-edited row can't crash the page.
     companyResearch: normalizeDossier(row.company_research),
     researchedLabel: row.researched_at ? formatFoundLabel(row.researched_at) : null,
+    coverLetter: toSavedCoverLetter(row),
   };
 }
 
@@ -229,4 +248,80 @@ export async function saveCompanyResearch(
     .select("id");
   if (error) throw error;
   if (!data || data.length === 0) throw new Error("The research update matched no job.");
+}
+
+type CoverLetterJobRow = {
+  id: string;
+  title: string;
+  company: string;
+  about_role: string | null;
+  match_reason: string | null;
+  matched_skills: string[] | null;
+  missing_skills: string[] | null;
+  company_research: unknown;
+};
+
+/** The fields the cover letter agent needs for one of the user's jobs, or null when it isn't theirs. Throws on a database error. */
+export async function getJobForCoverLetter(insforge: InsforgeServer, userId: string, jobId: string): Promise<CoverLetterJob | null> {
+  const { data, error } = await insforge.database
+    .from("jobs")
+    .select("id, title, company, about_role, match_reason, matched_skills, missing_skills, company_research")
+    .eq("id", jobId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  // The select above lists exactly these columns, so the row has this shape.
+  const row = data as CoverLetterJobRow;
+  return {
+    id: row.id,
+    title: row.title,
+    company: row.company,
+    aboutRole: row.about_role,
+    matchReason: row.match_reason,
+    matchedSkills: row.matched_skills ?? [],
+    missingSkills: row.missing_skills ?? [],
+    // Read like any untrusted jsonb, so an old or hand-edited row can't break the prompt.
+    companyResearch: normalizeDossier(row.company_research),
+  };
+}
+
+/** Saves (or replaces) the job's letter, stamps `cover_letter_generated_at` and clears any earlier edit. Throws when the update fails or touches no row. */
+export async function saveCoverLetter(
+  insforge: InsforgeServer,
+  userId: string,
+  jobId: string,
+  text: string,
+  tone: CoverLetterTone,
+): Promise<void> {
+  const { data, error } = await insforge.database
+    .from("jobs")
+    .update({
+      cover_letter: text,
+      cover_letter_tone: tone,
+      cover_letter_generated_at: new Date().toISOString(),
+      cover_letter_edited_at: null,
+    })
+    .eq("id", jobId)
+    .eq("user_id", userId)
+    .select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error("The cover letter update matched no job.");
+}
+
+/**
+ * Saves the user's own changes to an existing letter and stamps `cover_letter_edited_at`. Returns false when the job
+ * has no letter yet (or isn't theirs), so an edit can never create a letter. Throws on a database error.
+ */
+export async function saveEditedCoverLetter(insforge: InsforgeServer, userId: string, jobId: string, text: string): Promise<boolean> {
+  const { data, error } = await insforge.database
+    .from("jobs")
+    .update({ cover_letter: text, cover_letter_edited_at: new Date().toISOString() })
+    .eq("id", jobId)
+    .eq("user_id", userId)
+    .not("cover_letter", "is", null)
+    .select("id");
+  if (error) throw error;
+  return Boolean(data && data.length > 0);
 }

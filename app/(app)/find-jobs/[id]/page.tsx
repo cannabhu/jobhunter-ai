@@ -11,8 +11,10 @@ import { JobHeader } from "@/components/job-details/JobHeader";
 import { JobInfo } from "@/components/job-details/JobInfo";
 import { MatchReasoning } from "@/components/job-details/MatchReasoning";
 import { SkillsComparison } from "@/components/job-details/SkillsComparison";
+import { resolveTone } from "@/lib/coverLetter";
 import { isJobId } from "@/lib/jobDetails";
 import { getJobDetail } from "@/lib/insforge/jobs";
+import { getProfile } from "@/lib/insforge/profile";
 import { createInsforgeServer, getUser } from "@/lib/insforge/server";
 import { FIND_JOBS_PAGE_PATH } from "@/lib/routes";
 
@@ -30,8 +32,12 @@ async function JobDetailsContent({ params }: { params: Params }) {
   if (!isJobId(id)) notFound();
 
   const insforge = await createInsforgeServer();
-  const job = await getJobDetail(insforge, user.id, id);
+  // The profile only supplies the tone the picker starts on, so it loads alongside the job instead of after it.
+  const [job, profile] = await Promise.all([getJobDetail(insforge, user.id, id), getProfile()]);
   if (!job) notFound();
+
+  // The saved letter's tone, else the profile's (formal when unset or the profile is unavailable).
+  const defaultTone = resolveTone(job.coverLetter?.tone ?? profile?.cover_letter_tone);
 
   return (
     <div className="flex flex-col gap-6">
@@ -46,8 +52,14 @@ async function JobDetailsContent({ params }: { params: Params }) {
         dossier={job.companyResearch}
         researchedLabel={job.researchedLabel}
       />
-      {/* Feature 18 shows the empty state only; feature 19 passes the saved letter. */}
-      <CoverLetter company={job.company} letter={null} />
+      {/* Keyed on the generated time: a new letter remounts the card so its textarea starts from the new text. */}
+      <CoverLetter
+        key={job.coverLetter?.generatedAt ?? "none"}
+        jobId={job.id}
+        company={job.company}
+        letter={job.coverLetter}
+        defaultTone={defaultTone}
+      />
       <JobActions company={job.company} applyUrl={job.sourceUrl} />
     </div>
   );

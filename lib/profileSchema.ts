@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  COVER_LETTER_TONE_VALUES,
   DEGREE_VALUES,
   EXPERIENCE_LEVEL_VALUES,
   FIELD_LIMITS,
@@ -95,6 +96,7 @@ const profileInputSchema = z
     remotePreference: z.enum(["", ...REMOTE_PREFERENCE_VALUES], { error: "Choose a valid remote preference." }),
     salaryExpectation: text("Salary expectation", 60),
     preferredLocations: commaList("Preferred locations"),
+    coverLetterTone: z.enum(["", ...COVER_LETTER_TONE_VALUES], { error: "Choose a valid cover letter tone." }),
   })
   .superRefine((value, ctx) => {
     value.workExperience.forEach((role, index) => {
@@ -143,6 +145,7 @@ export function parseProfileFormData(formData: FormData): ProfileParseResult {
     remotePreference: readText(formData, "remotePreference"),
     salaryExpectation: readText(formData, "salaryExpectation"),
     preferredLocations: readText(formData, "preferredLocations"),
+    coverLetterTone: readText(formData, "coverLetterTone"),
   });
 
   if (result.success) return { success: true, data: result.data };

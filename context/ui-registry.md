@@ -263,7 +263,7 @@ Built from `context/designs/job-details.png` (1418px frame, sizes measured from 
 
 ### Find Jobs page (feature 09)
 
-Files: `app/(app)/find-jobs/page.tsx`, `components/find-jobs/SearchControls.tsx`, `JobFilters.tsx`, `FilterSelect.tsx`, `JobsTable.tsx`, `MatchScoreBar.tsx`, `JobsPagination.tsx`
+Files: `app/(app)/find-jobs/page.tsx`, `components/find-jobs/SearchControls.tsx`, `JobFilters.tsx`, `JobsTable.tsx`, `MatchScoreBar.tsx`, `JobsPagination.tsx`
 Last updated: 2026-11-15
 
 Built from `context/designs/find-jobs.png` (sampled colours, 1440px frame). Page wrapper `mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-14`, sections stacked `gap-6`, every section a card `rounded-xl border border-border bg-surface shadow-card`. The visible page title is absent in the design, so an `sr-only` h1 carries it.
@@ -302,7 +302,7 @@ Built from `context/designs/find-jobs.png` (sampled colours, 1440px frame). Page
 | Part | Class / behaviour |
 | --- | --- |
 | Filter bar | unchanged classes. `JobFilters` is now a client component with `aria-busy` while the list reloads; the text input has `maxLength` 100 and applies 300ms after the last keystroke, both selects apply at once |
-| Filter select | `FilterSelect` is now controlled (`value` + `onChange`); same classes |
+| Filter select | `FilterSelect` (now in `components/shared/`) is controlled (`value` + `onChange`); same classes |
 | Pagination buttons | now `next/link` `<Link>`s with the same classes (`inline-flex h-8 min-w-8 items-center justify-center rounded-md border px-3 text-sm font-medium shadow-card`, `border-border bg-surface text-text-dark hover:bg-surface-secondary`). Current page `border-accent-light bg-accent-muted text-accent` with `aria-current="page"`. First/last page buttons are a `<span aria-disabled="true">` with `cursor-not-allowed text-text-muted` instead of a disabled button. `prefetch={false}` |
 | Page window | `1 2 3 … last` near the start (the design), `1 … last-2 last-1 last` near the end, `1 … n-1 n n+1 … last` in the middle; all pages when there are 4 or fewer |
 | Empty, filtered | `px-6 py-16 text-center text-sm text-text-muted`: "No jobs match your filters." and a "Clear filters" link `mt-2 inline-block font-medium text-accent hover:text-accent-dark`. The "No jobs yet…" text is kept for a user with no saved jobs |
@@ -348,18 +348,19 @@ Route-level fallback (client component, `retry` prop from this Next version, not
 **Pattern notes:** the raw error is never shown; it goes to `posthog.captureException` like `app/global-error.tsx`. The chart readers never reject, so this only catches something unexpected. A future `error.tsx` for another `(app)` route should copy this shape.
 
 ### Cover Letter card (feature 18) — `components/job-details/CoverLetter.tsx`
-Client component on `/find-jobs/[id]`, between Company Research and Apply Now. No design exists; it copies the Company Research card. UI only until feature 19. Last updated: 2026-11-16
+Client component on `/find-jobs/[id]`, between Company Research and Apply Now. No design exists; it copies the Company Research card. Wired to the route and Server Action in feature 19. Last updated: 2026-11-16
 
 | Part | Class / behaviour |
 | --- | --- |
 | Card + header | same as Company Research: `overflow-hidden rounded-xl border border-border bg-surface shadow-card`; header `flex items-center justify-between gap-4 border-b border-border px-6 py-4`; `SectionIcon tone="accent"` + `FileText`; title `text-base font-semibold text-text-primary` |
+| Tone dropdown | `FilterSelect` (`components/shared/`, shared with Find Jobs; has a `disabled` prop: `disabled:cursor-not-allowed disabled:opacity-70`), `aria-label="Cover letter tone"`, Formal / Casual / Enthusiastic, left of the header button in a `flex flex-wrap items-center gap-2` group; the header wraps (`flex-wrap gap-x-4 gap-y-3`) on narrow screens. Starts on the letter's tone, else the profile's; sent with Generate / Regenerate for that letter only. Disabled while busy or while the replace confirm is open |
 | Header button | `rounded-lg px-4 py-2 text-sm font-medium shadow-card`, `gap-2`, `size-4` icon. No letter: primary accent, "Generate Cover Letter", `FileText`. Letter exists: secondary, "Regenerate", `RefreshCw`. Busy: `LoaderCircle animate-spin`, "Writing your cover letter...", `disabled:cursor-not-allowed disabled:opacity-70` |
 | Empty state | same as Company Research (`px-6 py-12`, tile `size-12 rounded-xl bg-surface-tertiary` + `FileText size-6 text-text-muted`, "No cover letter yet") |
 | Body (letter exists) | `flex flex-col gap-4 px-6 py-6` |
 | Meta line | `text-xs text-text-muted`: "Formal tone · Generated 2 hours ago"; "Edited" pill `rounded-full bg-surface-secondary px-2 py-0.5 font-medium text-text-secondary` |
-| Textarea | `w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm leading-6 text-text-primary focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none`, 18 rows, `aria-label` |
+| Textarea | `w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm leading-6 text-text-primary focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none`, 18 rows, `aria-label`, `maxLength` 5,000, disabled while busy |
 | Footer row | `flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`; word count `text-xs text-text-muted` ("152 words"), "Saved" `role="status" font-medium text-success-foreground`; buttons `gap-2`: secondary Copy (`Copy` icon, becomes `Check` + "Copied" for 2s) and primary "Save changes" (disabled until the text differs from the saved letter) |
 | Regenerate confirm | `role="alertdialog"` strip under the header: `border-b border-border bg-surface-secondary px-6 py-3`, bold "This replaces your edited letter." lead-in, secondary Cancel + primary "Replace and regenerate". Shown only when the letter has saved or unsaved edits |
-| Error line | `role="alert" border-b border-border px-6 py-3 text-sm text-error` (as the research card) |
+| Error line | `role="alert" border-b border-border px-6 py-3 text-sm text-error` (as the research card). After a 422 it is followed by an underlined "Go to your profile" link (`font-medium underline underline-offset-2`), as on Find Jobs |
 
-**Profile form:** "Cover Letter Tone (Optional)" is a full-width `SelectInput` at the end of Job Preferences (placeholder "Choose a tone"; Formal, Casual, Enthusiastic).
+**Profile form:** "Cover Letter Tone (Optional)" is a full-width `SelectInput` at the end of Job Preferences (placeholder "Choose a tone"; Formal, Casual, Enthusiastic). It saves with the profile and pre-fills on return visits (`defaultValue`).

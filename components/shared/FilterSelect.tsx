@@ -9,17 +9,19 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   emphasized?: boolean;
+  disabled?: boolean;
 };
 
-export function FilterSelect({ label, name, options, value, onChange, emphasized = false }: Props) {
+export function FilterSelect({ label, name, options, value, onChange, emphasized = false, disabled = false }: Props) {
   return (
     <div className="relative">
       <select
         aria-label={label}
         name={name}
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className={`cursor-pointer appearance-none rounded-md border border-border bg-surface py-1.5 pr-9 pl-4 text-sm font-medium shadow-card focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent ${
+        className={`cursor-pointer appearance-none disabled:cursor-not-allowed disabled:opacity-70 rounded-md border border-border bg-surface py-1.5 pr-9 pl-4 text-sm font-medium shadow-card focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent ${
           emphasized ? "text-text-primary" : "text-text-dark"
         }`}
       >

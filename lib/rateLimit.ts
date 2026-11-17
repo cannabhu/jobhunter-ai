@@ -3,6 +3,12 @@
 
 const hits = new Map<string, number[]>();
 
+/** Gives back the most recent turn of `key`, for a request that failed through no fault or cost of the user. */
+export function releaseRateLimit(key: string): void {
+  const recent = hits.get(key);
+  if (recent && recent.length > 0) hits.set(key, recent.slice(0, -1));
+}
+
 export type RateLimitResult = { allowed: true } | { allowed: false; retryAfterMs: number };
 
 export function checkRateLimit(key: string, limit: number, windowMs: number, now = Date.now()): RateLimitResult {

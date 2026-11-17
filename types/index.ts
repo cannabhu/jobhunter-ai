@@ -65,6 +65,7 @@ export type ProfileFormValues = {
   remotePreference: NonNullable<ProfileRow["remote_preference"]> | "";
   salaryExpectation: string;
   preferredLocations: string;
+  coverLetterTone: NonNullable<ProfileRow["cover_letter_tone"]> | "";
 };
 
 /** What a Save Profile submit carries. Email is excluded: it always comes from the auth session. */
@@ -177,6 +178,8 @@ export type JobDetail = {
   companyResearch: CompanyDossier | null;
   /** "2 hours ago" for `researched_at`; null when never researched. */
   researchedLabel: string | null;
+  /** The saved cover letter, or null when none has been generated (or the stored value is unusable). */
+  coverLetter: SavedCoverLetter | null;
 };
 
 /** The saved job fields the research agent reads. */
@@ -258,4 +261,33 @@ export type SavedCoverLetter = {
   generatedLabel: string;
   /** True once the user has saved their own changes to the generated text. */
   edited: boolean;
+  /** ISO time it was generated; with `editedAt` it identifies this version of the letter, so the card can reset on a new one. */
+  generatedAt: string;
+  /** ISO time of the user's last saved edit; null until they save one. */
+  editedAt: string | null;
 };
+
+/** The saved job fields the cover letter agent reads. */
+export type CoverLetterJob = {
+  id: string;
+  title: string;
+  company: string;
+  aboutRole: string | null;
+  matchReason: string | null;
+  matchedSkills: string[];
+  missingSkills: string[];
+  /** The saved dossier, or null when the job has not been researched (or the stored value is unusable). */
+  companyResearch: CompanyDossier | null;
+};
+
+/** What `writeCoverLetter` returns: safe, trimmed text and the tone it was written in. */
+export type WrittenCoverLetter = {
+  text: string;
+  tone: CoverLetterTone;
+};
+
+/** Response of `POST /api/agent/cover-letter`. */
+export type CoverLetterResponse = { success: true } | { success: false; error: string };
+
+/** Result of the `saveCoverLetterEdits` Server Action. `text` is what was actually stored: the typed text after trimming and tidying. */
+export type SaveCoverLetterResult = { success: true; text: string } | { success: false; error: string };

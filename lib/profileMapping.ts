@@ -55,14 +55,15 @@ export function rowToFormValues(row: ProfileRow): ProfileFormValues {
     remotePreference: row.remote_preference ?? "",
     salaryExpectation: row.salary_expectation ?? "",
     preferredLocations: joinList(row.preferred_locations),
+    coverLetterTone: row.cover_letter_tone ?? "",
   };
 }
 
 const orNull = (value: string): string | null => (value === "" ? null : value);
 
 /**
- * Validated form input to a `profiles` update. Email, id, resume and cover-letter tone are left out on
- * purpose: the form does not own them.
+ * Validated form input to a `profiles` update. Email, id and resume are left out on purpose: the form does
+ * not own them.
  */
 export function inputToRowUpdate(values: ProfileInput, completion: ProfileCompletion) {
   return {
@@ -83,6 +84,7 @@ export function inputToRowUpdate(values: ProfileInput, completion: ProfileComple
     remote_preference: orNull(values.remotePreference),
     preferred_locations: splitList(values.preferredLocations),
     salary_expectation: orNull(values.salaryExpectation),
+    cover_letter_tone: orNull(values.coverLetterTone),
     is_complete: completion.isComplete,
     completion_percentage: completion.percentage,
     missing_fields: completion.missingFields,

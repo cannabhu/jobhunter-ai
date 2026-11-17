@@ -64,7 +64,7 @@ Full width layout on all pages. No sidebar.
   - "Skip" → resume stored as-is, profile unchanged
 - User can manually edit any profile field at any time
 - User can generate a clean professional PDF resume from their current profile data using GPT-4o
-- User chooses a cover letter tone (formal / casual / enthusiastic) in Job Preferences — optional, used by cover letter generation
+- User chooses a default cover letter tone (formal / casual / enthusiastic) in Job Preferences — optional; the Cover Letter card starts on it and can pick another tone for one letter
 
 ### Finding Jobs — Adzuna Discovery
 
@@ -107,7 +107,8 @@ Full width layout on all pages. No sidebar.
 - Cover Letter section:
   - Empty state with Generate Cover Letter button
   - After generation: an editable letter with Save changes, Copy and Regenerate
-  - Written by GPT-4o in the user's chosen tone, from the job, the profile and the company dossier when the job has been researched
+  - A tone dropdown (Formal, Casual, Enthusiastic) sits beside the Generate / Regenerate button, starting on the letter's tone or the profile's default
+  - Written by GPT-4o in the chosen tone, from the job, the profile and the company dossier when the job has been researched
 - Apply Now button — opens external apply URL in new tab
 
 ### Company Research Flow
@@ -124,7 +125,7 @@ Full width layout on all pages. No sidebar.
 
 - User clicks Generate Cover Letter on the job details page
 - GPT-4o reads the job posting and the saved profile, plus the company dossier if the job has been researched
-- Letter is written in the tone saved on the profile (formal if none is set) and saved on the job
+- Letter is written in the tone picked on the card, which starts on the profile's tone (formal if none is set); the tone used is saved on the job with the letter
 - User edits the text and saves the changes, copies it, or regenerates a new one (regenerating replaces the saved letter, with a confirm if it was edited)
 - The agent never submits anything — the user pastes the letter into the application themselves
 
@@ -184,7 +185,7 @@ Full width layout on all pages. No sidebar.
 - GPT-4o job matching with score, reason, matched skills, missing skills
 - Job details page with full structured description
 - Company Research Agent — single Browserbase session browses company public pages, GPT-4o builds dossier
-- AI cover letter generation per job — GPT-4o, in the tone chosen on the profile, using the job posting, the profile and the company dossier when it exists
+- AI cover letter generation per job — GPT-4o, in the tone picked on the card (default from the profile), using the job posting, the profile and the company dossier when it exists
 - Find Jobs page with search controls, filter, sort dropdown, pagination
 - Dashboard with stats bar, recent activity, analytics charts
 - PostHog event tracking throughout
