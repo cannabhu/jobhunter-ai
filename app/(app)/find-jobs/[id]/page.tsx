@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { CompanyResearch } from "@/components/job-details/CompanyResearch";
 import { CoverLetter } from "@/components/job-details/CoverLetter";
 import { JobActions } from "@/components/job-details/JobActions";
+import { JobDetailsSkeleton } from "@/components/job-details/JobDetailsSkeleton";
 import { JobDescription } from "@/components/job-details/JobDescription";
 import { JobHeader } from "@/components/job-details/JobHeader";
 import { JobInfo } from "@/components/job-details/JobInfo";
@@ -75,7 +76,7 @@ export default function JobDetailsPage({ params }: { params: Params }) {
         <ChevronLeft className="size-4" aria-hidden="true" />
         Back to Jobs
       </Link>
-      <Suspense fallback={null}>
+      <Suspense fallback={<JobDetailsSkeleton />}>
         <JobDetailsContent params={params} />
       </Suspense>
     </div>

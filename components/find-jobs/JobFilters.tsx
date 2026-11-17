@@ -3,6 +3,7 @@
 import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
+import { useReportListingPending } from "@/components/find-jobs/JobsListingContext";
 import { FilterSelect } from "@/components/shared/FilterSelect";
 import { MAX_SEARCH_TEXT_LENGTH } from "@/lib/findJobs";
 import { JOB_SORTS, MATCH_FILTERS, buildJobsHref } from "@/lib/jobsQuery";
@@ -32,6 +33,7 @@ const TYPING_PAUSE_MS = 300;
 export function JobFilters({ query }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  useReportListingPending("filters", isPending);
   const [match, setMatch] = useOptimistic(query.match);
   const [sort, setSort] = useOptimistic(query.sort);
   const [text, setText] = useState(query.query);

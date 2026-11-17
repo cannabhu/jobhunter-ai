@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { PageLink } from "@/components/find-jobs/PageLink";
 import { buildJobsHref } from "@/lib/jobsQuery";
 import type { JobsQuery, PaginationItem } from "@/types";
 
@@ -30,9 +30,9 @@ export function JobsPagination({ query, currentPage, pages, from, to, total }: P
       </p>
       <nav aria-label="Pagination" className="flex flex-wrap items-center gap-2">
         {currentPage > 1 ? (
-          <Link href={hrefFor(currentPage - 1)} prefetch={false} className={buttonClass}>
+          <PageLink href={hrefFor(currentPage - 1)} className={buttonClass}>
             Previous
-          </Link>
+          </PageLink>
         ) : (
           <span aria-disabled="true" className={disabledButtonClass}>
             Previous
@@ -44,22 +44,21 @@ export function JobsPagination({ query, currentPage, pages, from, to, total }: P
               ...
             </span>
           ) : (
-            <Link
+            <PageLink
               key={item}
               href={hrefFor(item)}
-              prefetch={false}
               aria-label={`Page ${item}`}
               aria-current={item === currentPage ? "page" : undefined}
               className={item === currentPage ? currentButtonClass : buttonClass}
             >
               {item}
-            </Link>
+            </PageLink>
           ),
         )}
         {currentPage < lastPage ? (
-          <Link href={hrefFor(currentPage + 1)} prefetch={false} className={buttonClass}>
+          <PageLink href={hrefFor(currentPage + 1)} className={buttonClass}>
             Next
-          </Link>
+          </PageLink>
         ) : (
           <span aria-disabled="true" className={disabledButtonClass}>
             Next

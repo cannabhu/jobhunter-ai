@@ -1,6 +1,7 @@
 "use client";
 
 import { CloudUpload, ExternalLink, FileText, LoaderCircle, Sparkles } from "lucide-react";
+import { AsyncActionButton } from "@/components/shared/AsyncActionButton";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type DragEvent } from "react";
 import {
@@ -222,21 +223,22 @@ export function ResumeUpload({ hasResume, hasUnsavedChanges, onExtracted }: Prop
             <p className="text-sm text-text-secondary">
               Fill the form below from this resume. Fields the resume covers are replaced; nothing is saved until you click Save Profile.
             </p>
-            <button
-              type="button"
+            <AsyncActionButton
+              busy={extracting}
+              icon={Sparkles}
+              idleLabel="Extract from Resume"
+              busyLabel="Reading your resume…"
+              spinnerClassName="text-accent"
               onClick={() => void extract()}
               disabled={busy}
-              aria-busy={extracting}
               className="flex shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 py-2.5 text-sm font-medium text-text-primary shadow-card hover:bg-surface-secondary disabled:opacity-60"
-            >
-              {extracting ? (
-                <LoaderCircle className="size-4 animate-spin text-accent" aria-hidden="true" />
-              ) : (
-                <Sparkles className="size-4 text-accent" aria-hidden="true" />
-              )}
-              {extracting ? "Reading your resume…" : "Extract from Resume"}
-            </button>
+            />
           </div>
+          {extracting ? (
+            <p role="status" className="mt-3 text-sm text-text-secondary">
+              Reading your resume and filling in your details. This usually takes under a minute.
+            </p>
+          ) : null}
           {extractError ? (
             <p role="alert" className="mt-3 text-sm text-error">
               {extractError}
@@ -255,20 +257,15 @@ export function ResumeUpload({ hasResume, hasUnsavedChanges, onExtracted }: Prop
       <div className="mt-6 border-t border-border pt-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-text-secondary">Need a fresh document based on the fields below?</p>
-          <button
-            type="button"
+          <AsyncActionButton
+            busy={generating}
+            icon={FileText}
+            idleLabel="Generate Resume from Profile"
+            busyLabel="Generating…"
             onClick={startGenerate}
             disabled={busy || confirmingReplace}
-            aria-busy={generating}
             className="flex shrink-0 items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground shadow-card hover:bg-accent-dark disabled:opacity-60"
-          >
-            {generating ? (
-              <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <FileText className="size-4" aria-hidden="true" />
-            )}
-            {generating ? "Generating…" : "Generate Resume from Profile"}
-          </button>
+          />
         </div>
 
         {confirmingReplace ? (
@@ -299,6 +296,11 @@ export function ResumeUpload({ hasResume, hasUnsavedChanges, onExtracted }: Prop
           </div>
         ) : null}
 
+        {generating ? (
+          <p role="status" className="mt-3 text-sm text-text-secondary">
+            Writing your resume from your saved profile. This usually takes under a minute.
+          </p>
+        ) : null}
         {hasUnsavedChanges ? (
           <p role="note" className="mt-3 rounded-md border border-border bg-surface-secondary px-4 py-3 text-sm text-text-secondary">
             You have unsaved changes. The generated resume uses your saved profile, so click Save Profile first to include them.

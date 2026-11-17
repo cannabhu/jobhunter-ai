@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ActivityEntry, ActivityTone } from "@/types";
 
 type Props = {
@@ -35,7 +36,15 @@ export function RecentActivity({ entries }: Props) {
                 {index < entries.length - 1 ? <span aria-hidden="true" className="mt-1 w-px flex-1 bg-border" /> : null}
               </div>
               <div className={index < entries.length - 1 ? "pb-6.5" : ""}>
-                <p className="text-sm leading-4 font-medium text-text-primary">{entry.message}</p>
+                <p className="text-sm leading-4 font-medium text-text-primary">
+                  {entry.href ? (
+                    <Link href={entry.href} className="hover:text-accent hover:underline hover:underline-offset-2 focus-visible:text-accent">
+                      {entry.message}
+                    </Link>
+                  ) : (
+                    entry.message
+                  )}
+                </p>
                 <p className="mt-1.5 text-xs text-text-muted">{entry.timeLabel}</p>
               </div>
             </li>

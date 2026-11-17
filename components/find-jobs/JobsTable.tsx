@@ -74,7 +74,6 @@ export function JobsTable({ jobs, filtered }: Props) {
                 {/* The link's ::after covers the whole row (the <tr> is the positioned ancestor), so a click anywhere opens the job. */}
                 <Link
                   href={jobDetailPath(job.id)}
-                  prefetch={false}
                   className="block truncate after:absolute after:inset-0 focus-visible:after:rounded-md focus-visible:after:outline-2 focus-visible:after:outline-accent"
                 >
                   {job.title}
