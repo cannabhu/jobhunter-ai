@@ -84,11 +84,12 @@ function buildUserPrompt(job: CoverLetterJob, profile: ProfileRow, tone: CoverLe
 }
 
 /**
- * Asks GPT-4o for one cover letter for one saved job. The tone is the profile's, formal when unset. There is no
- * fallback letter: when the model fails or answers with nothing usable, this throws and nothing is saved.
+ * Asks GPT-4o for one cover letter for one saved job. The tone is the one asked for on the card, else the profile's,
+ * else formal. There is no fallback letter: when the model fails or answers with nothing usable, this throws and
+ * nothing is saved.
  */
-export async function writeCoverLetter(job: CoverLetterJob, profile: ProfileRow): Promise<WrittenCoverLetter> {
-  const tone = resolveTone(profile.cover_letter_tone);
+export async function writeCoverLetter(job: CoverLetterJob, profile: ProfileRow, requestedTone?: CoverLetterTone): Promise<WrittenCoverLetter> {
+  const tone = requestedTone ?? resolveTone(profile.cover_letter_tone);
 
   let response;
   try {
