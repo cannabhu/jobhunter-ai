@@ -506,7 +506,7 @@ Rules:
 - Lead with why this role and this company, not with a summary of the resume.
 - Connect two or three of the candidate's real strengths to what the role asks for.
 - If a required skill is missing, do not claim it. Point to adjacent experience, or leave it out.
-- 250 to 350 words, three or four short paragraphs, no bullet points.
+- 150 to 200 words (never fewer than 150), three short paragraphs, no bullet points.
 - No placeholders such as [Your Name] or [Company]. Use the real names. Sign off with the candidate's full name.
 
 Return ONLY valid JSON: { "coverLetter": "string" }

@@ -2,9 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Building2, LoaderCircle, RefreshCw, Search } from "lucide-react";
+import { Building2, RefreshCw, Search } from "lucide-react";
+import { DossierSkeleton } from "@/components/job-details/DossierSkeleton";
 import { DossierView } from "@/components/job-details/DossierView";
 import { SectionIcon } from "@/components/job-details/SectionIcon";
+import { AsyncActionButton } from "@/components/shared/AsyncActionButton";
 import { RESEARCH_PATH } from "@/lib/companyResearch";
 import type { CompanyDossier, ResearchCompanyResponse } from "@/types";
 
@@ -54,8 +56,6 @@ export function CompanyResearch({ jobId, company, dossier, researchedLabel }: Pr
   }
 
   const hasDossier = dossier !== null;
-  const Icon = busy ? LoaderCircle : hasDossier ? RefreshCw : Search;
-  const label = busy ? "Researching..." : hasDossier ? "Refresh research" : "Research Company";
 
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-surface shadow-card">
@@ -66,15 +66,14 @@ export function CompanyResearch({ jobId, company, dossier, researchedLabel }: Pr
           </SectionIcon>
           <h2 className="text-base font-semibold text-text-primary">Company Research</h2>
         </div>
-        <button
-          type="button"
+        <AsyncActionButton
+          busy={busy}
+          icon={hasDossier ? RefreshCw : Search}
+          idleLabel={hasDossier ? "Refresh research" : "Research Company"}
+          busyLabel="Researching..."
           onClick={handleResearch}
-          disabled={busy}
           className={`inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium shadow-card disabled:cursor-not-allowed disabled:opacity-70 ${hasDossier ? secondaryButtonClass : primaryButtonClass}`}
-        >
-          <Icon className={`size-4 ${busy ? "animate-spin" : ""}`} aria-hidden="true" />
-          {label}
-        </button>
+        />
       </div>
 
       {busy ? (
@@ -88,7 +87,9 @@ export function CompanyResearch({ jobId, company, dossier, researchedLabel }: Pr
         </p>
       ) : null}
 
-      {dossier ? (
+      {busy ? (
+        <DossierSkeleton />
+      ) : dossier ? (
         <DossierView dossier={dossier} researchedLabel={researchedLabel} />
       ) : (
         <div className="flex flex-col items-center px-6 py-12 text-center">

@@ -1,4 +1,5 @@
 import { formatActivityLabel } from "@/lib/relativeTime";
+import { jobDetailPath } from "@/lib/routes";
 import type { ActivityEntry } from "@/types";
 
 /** Entries shown in the Recent Activity card (the design shows five). */
@@ -58,7 +59,13 @@ export function buildActivityEntries(
     if (Number.isNaN(time) || !job.researchedAt || !company) continue;
     dated.push({
       time,
-      entry: { id: `research-${job.id}`, message: `Researched ${company}`, timeLabel: formatActivityLabel(job.researchedAt, now), tone: "info" },
+      entry: {
+        id: `research-${job.id}`,
+        message: `Researched ${company}`,
+        timeLabel: formatActivityLabel(job.researchedAt, now),
+        tone: "info",
+        href: jobDetailPath(job.id),
+      },
     });
   }
 

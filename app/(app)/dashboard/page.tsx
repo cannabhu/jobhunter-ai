@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ChartCard } from "@/components/dashboard/ChartCard";
 import { ChartSkeleton } from "@/components/dashboard/ChartSkeleton";
+import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { JobsOverTimeSection } from "@/components/dashboard/JobsOverTimeSection";
 import { MatchDistributionSection } from "@/components/dashboard/MatchDistributionSection";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
@@ -69,7 +70,7 @@ async function DashboardContent() {
 export default function DashboardPage() {
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 py-8 sm:px-6 lg:px-14">
-      <Suspense fallback={null}>
+      <Suspense fallback={<DashboardSkeleton />}>
         <DashboardContent />
       </Suspense>
     </div>

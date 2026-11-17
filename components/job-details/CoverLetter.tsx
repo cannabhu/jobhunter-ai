@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { Check, Copy, FileText, LoaderCircle, RefreshCw } from "lucide-react";
+import { Check, Copy, FileText, RefreshCw } from "lucide-react";
 import { saveCoverLetterEdits } from "@/actions/coverLetter";
+import { LetterSkeleton } from "@/components/job-details/LetterSkeleton";
 import { SectionIcon } from "@/components/job-details/SectionIcon";
+import { AsyncActionButton } from "@/components/shared/AsyncActionButton";
 import { FilterSelect } from "@/components/shared/FilterSelect";
 import { COVER_LETTER_TONE_VALUES } from "@/lib/profileConstants";
 import { COVER_LETTER_FAILED, COVER_LETTER_MAX_CHARS, COVER_LETTER_PATH, resolveTone } from "@/lib/coverLetter";
@@ -137,8 +139,6 @@ export function CoverLetter({ jobId, company, letter, defaultTone }: Props) {
   }
 
   const writing = generating || refreshing;
-  const HeaderIcon = writing ? LoaderCircle : hasLetter ? RefreshCw : FileText;
-  const headerLabel = writing ? "Writing your cover letter..." : hasLetter ? "Regenerate" : "Generate Cover Letter";
   const CopyIcon = copied ? Check : Copy;
 
   return (
@@ -159,15 +159,15 @@ export function CoverLetter({ jobId, company, letter, defaultTone }: Props) {
             onChange={(value) => setTone(resolveTone(value))}
             disabled={busy || confirmingReplace}
           />
-          <button
-            type="button"
+          <AsyncActionButton
+            busy={writing}
+            icon={hasLetter ? RefreshCw : FileText}
+            idleLabel={hasLetter ? "Regenerate" : "Generate Cover Letter"}
+            busyLabel="Writing..."
             onClick={handleHeaderClick}
             disabled={busy || confirmingReplace}
             className={`${buttonClass} ${hasLetter ? secondaryButtonClass : primaryButtonClass}`}
-          >
-            <HeaderIcon className={`size-4 ${writing ? "animate-spin" : ""}`} aria-hidden="true" />
-            {headerLabel}
-          </button>
+          />
         </div>
       </div>
 
@@ -190,6 +190,11 @@ export function CoverLetter({ jobId, company, letter, defaultTone }: Props) {
           </div>
         </div>
       ) : null}
+      {writing ? (
+        <p role="status" className="border-b border-border px-6 py-3 text-sm text-text-secondary">
+          Writing your cover letter for {company} from your profile and this job. This usually takes under a minute.
+        </p>
+      ) : null}
       {error ? (
         <p role="alert" className="border-b border-border px-6 py-3 text-sm text-error">
           {error}
@@ -204,7 +209,9 @@ export function CoverLetter({ jobId, company, letter, defaultTone }: Props) {
         </p>
       ) : null}
 
-      {hasLetter ? (
+      {writing ? (
+        <LetterSkeleton />
+      ) : hasLetter ? (
         <div className="flex flex-col gap-4 px-6 py-6">
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-muted">
             <span>

@@ -243,6 +243,8 @@ export type ActivityEntry = {
   /** Ready-made label such as "10 mins ago". */
   timeLabel: string;
   tone: ActivityTone;
+  /** Where clicking the entry goes (a researched company opens its job page). Absent for entries that go nowhere. */
+  href?: string;
 };
 
 /** One bar or point on a dashboard chart. */

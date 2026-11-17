@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { CompletionIndicator } from "@/components/profile/CompletionIndicator";
 import { ProfileEditor } from "@/components/profile/ProfileEditor";
+import { ProfileSkeleton } from "@/components/profile/ProfileSkeleton";
 import { getProfile } from "@/lib/insforge/profile";
 import { getUser } from "@/lib/insforge/server";
 import { rowToFormValues } from "@/lib/profileMapping";
@@ -43,7 +44,7 @@ async function ProfileContent() {
 export default function ProfilePage() {
   return (
     <div className="mx-auto w-full max-w-[932px] px-4 py-8 sm:px-6">
-      <Suspense fallback={null}>
+      <Suspense fallback={<ProfileSkeleton />}>
         <ProfileContent />
       </Suspense>
     </div>

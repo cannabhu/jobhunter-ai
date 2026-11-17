@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
-import { LoaderCircle, Search, Sparkles } from "lucide-react";
+import { useState, useTransition, type FormEvent } from "react";
+import { Search, Sparkles } from "lucide-react";
+import { useReportListingPending } from "@/components/find-jobs/JobsListingContext";
 import { labelClass } from "@/components/profile/fieldStyles";
+import { AsyncActionButton } from "@/components/shared/AsyncActionButton";
 import { FIND_JOBS_PATH, MAX_SEARCH_TEXT_LENGTH } from "@/lib/findJobs";
 import type { FindJobsResponse } from "@/types";
 
@@ -18,12 +20,16 @@ type SearchError = { message: string; needsProfile: boolean };
 export function SearchControls() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  const [refreshing, startRefresh] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<SearchError | null>(null);
+  // Held until the refreshed page has the new rows, so the button and the table placeholders do not drop out early.
+  const busy = pending || refreshing;
+  useReportListingPending("search", busy);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending) return;
+    if (busy) return;
 
     const form = new FormData(event.currentTarget);
     const jobTitle = String(form.get("jobTitle") ?? "").trim();
@@ -49,7 +55,7 @@ export function SearchControls() {
         return;
       }
       setMessage(result.data.message);
-      router.refresh();
+      startRefresh(() => router.refresh());
     } catch (searchError) {
       console.error("[SearchControls]", searchError);
       setError({ message: SEARCH_FAILED, needsProfile: false });
@@ -76,7 +82,7 @@ export function SearchControls() {
               type="text"
               maxLength={MAX_SEARCH_TEXT_LENGTH}
               placeholder="Frontend Engineer"
-              disabled={pending}
+              disabled={busy}
               className={`${inputClass} pr-4 pl-9`}
             />
           </div>
@@ -91,22 +97,18 @@ export function SearchControls() {
             type="text"
             maxLength={MAX_SEARCH_TEXT_LENGTH}
             placeholder="Remote, New York..."
-            disabled={pending}
+            disabled={busy}
             className={`${inputClass} px-4`}
           />
         </div>
-        <button
+        <AsyncActionButton
           type="submit"
-          disabled={pending}
+          busy={busy}
+          icon={Search}
+          idleLabel="Find Jobs"
+          busyLabel="Searching..."
           className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md bg-accent px-5 text-sm font-medium text-accent-foreground shadow-card hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-70"
-        >
-          {pending ? (
-            <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <Search className="size-4" aria-hidden="true" />
-          )}
-          {pending ? "Searching..." : "Find Jobs"}
-        </button>
+        />
       </form>
       {pending ? (
         <p role="status" className="mt-4 text-sm text-text-secondary">
