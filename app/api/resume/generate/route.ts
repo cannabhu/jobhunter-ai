@@ -30,19 +30,20 @@ export async function POST() {
     const user = await getUser();
     if (!user) return fail("Your session has expired. Please sign in again.", 401);
 
+    const profile = await getProfile();
+    if (!profile) return fail("We couldn't load your profile. Please try again.", 500);
+
+    // The saved profile, not the form on screen: unsaved edits are not part of the resume.
+    const values = rowToFormValues(profile);
+    // Checked before the rate limit, so a request that can't produce a resume doesn't use up one of the user's turns.
+    if (!hasEnoughForResume(values)) return fail(RESUME_NEEDS_DATA_ERROR, 422);
+
     // Before the model call, so a rejected request costs nothing.
     const limit = checkRateLimit(`resume-generate:${user.id}`, GENERATE_LIMIT, GENERATE_WINDOW_MS);
     if (!limit.allowed) {
       const minutes = Math.max(1, Math.ceil(limit.retryAfterMs / 60_000));
       return fail(`You've generated several resumes recently. Please try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`, 429);
     }
-
-    const profile = await getProfile();
-    if (!profile) return fail("We couldn't load your profile. Please try again.", 500);
-
-    // The saved profile, not the form on screen: unsaved edits are not part of the resume.
-    const values = rowToFormValues(profile);
-    if (!hasEnoughForResume(values)) return fail(RESUME_NEEDS_DATA_ERROR, 422);
 
     const insforge = await createInsforgeServer();
 

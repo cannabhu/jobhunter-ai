@@ -29,13 +29,6 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) return fail("That job could not be found.", 400);
     const { jobId } = parsed.data;
 
-    // Before any browser or model call, so a rejected request costs nothing.
-    const limit = checkRateLimit(`research:${user.id}`, RESEARCH_LIMIT, RESEARCH_WINDOW_MS);
-    if (!limit.allowed) {
-      const minutes = Math.max(1, Math.ceil(limit.retryAfterMs / 60_000));
-      return fail(`You've researched several companies recently. Please try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`, 429);
-    }
-
     const insforge = await createInsforgeServer();
     const job = await getJobForResearch(insforge, user.id, jobId);
     if (!job) return fail("That job could not be found.", 404);
@@ -43,6 +36,14 @@ export async function POST(req: NextRequest) {
     // The saved profile, not the form on screen: unsaved edits are not part of the briefing.
     const profile = await getProfile();
     if (!profile) return fail("We couldn't load your profile. Please try again.", 500);
+
+    // After the lookups, so a request for a job that doesn't exist doesn't use up one of the user's turns.
+    // Still before any browser or model call, so a rejected request costs nothing.
+    const limit = checkRateLimit(`research:${user.id}`, RESEARCH_LIMIT, RESEARCH_WINDOW_MS);
+    if (!limit.allowed) {
+      const minutes = Math.max(1, Math.ceil(limit.retryAfterMs / 60_000));
+      return fail(`You've researched several companies recently. Please try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`, 429);
+    }
 
     // Every check has passed, so from here the status is 200 and a failure is an `error` event.
     return streamProgress<CompanyDossier, ResearchStageId>("agent/research", async (report) => {
