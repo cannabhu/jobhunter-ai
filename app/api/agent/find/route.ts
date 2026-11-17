@@ -1,20 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { discoverJobs } from "@/agent/adzuna";
-import { FIND_LIMIT, FIND_WINDOW_MS, PROFILE_NEEDS_DATA_ERROR } from "@/lib/findJobs";
+import { FIND_LIMIT, FIND_WINDOW_MS, PROFILE_NEEDS_DATA_ERROR, type FindJobsStageId } from "@/lib/findJobs";
 import { buildFindMessage } from "@/lib/findJobsMessage";
 import { findJobsSchema } from "@/lib/findJobsSchema";
 import { getProfile } from "@/lib/insforge/profile";
 import { createInsforgeServer, getUser } from "@/lib/insforge/server";
 import { createPostHogServer } from "@/lib/posthog-server";
+import { streamProgress } from "@/lib/progressStream";
 import { checkRateLimit } from "@/lib/rateLimit";
-import type { FindJobsResponse } from "@/types";
+import type { FindJobsResponse, FindJobsResult } from "@/types";
 
 // Up to 10 parallel GPT-4o calls plus Adzuna; give the route room on platforms that enforce a limit.
 export const maxDuration = 60;
 
 const fail = (error: string, status: number) => NextResponse.json<FindJobsResponse>({ success: false, error }, { status });
 
-/** Searches Adzuna for the signed-in user, scores the new jobs against their saved profile and saves them. */
+/**
+ * Searches Adzuna for the signed-in user, scores the new jobs against their saved profile and saves them.
+ * Checks answer as JSON with a real status; once they pass, the work streams its stages (search, score, save) as NDJSON.
+ */
 export async function POST(req: NextRequest) {
   try {
     const user = await getUser();
@@ -45,46 +49,53 @@ export async function POST(req: NextRequest) {
     const runId: unknown = runRows?.[0]?.id;
     if (runError || typeof runId !== "string") throw runError ?? new Error("agent_runs insert returned no id");
 
-    const posthog = createPostHogServer();
-    try {
-      posthog.capture({ distinctId: user.id, event: "job_search_started", properties: { userId: user.id, jobTitle, location } });
+    // Every check has passed, so from here the status is 200 and a failure is an `error` event.
+    return streamProgress<FindJobsResult, FindJobsStageId>("agent/find", async (report) => {
+      const posthog = createPostHogServer();
+      try {
+        posthog.capture({ distinctId: user.id, event: "job_search_started", properties: { userId: user.id, jobTitle, location } });
 
-      const result = await discoverJobs(insforge, user.id, runId, jobTitle, location, profile);
+        const result = await discoverJobs(insforge, user.id, runId, jobTitle, location, profile, report);
 
-      const { error: closeError } = await insforge.database
-        .from("agent_runs")
-        .update({
-          status: result.success ? "completed" : "failed",
-          jobs_found: result.success ? result.found : 0,
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", runId)
-        .eq("user_id", user.id);
-      if (closeError) console.error("[agent/find] could not close the run", closeError.message);
+        const { error: closeError } = await insforge.database
+          .from("agent_runs")
+          .update({
+            status: result.success ? "completed" : "failed",
+            jobs_found: result.success ? result.found : 0,
+            completed_at: new Date().toISOString(),
+          })
+          .eq("id", runId)
+          .eq("user_id", user.id);
+        if (closeError) console.error("[agent/find] could not close the run", closeError.message);
 
-      if (!result.success) return fail(result.error, result.unavailable ? 503 : 500);
+        if (!result.success) return { ok: false, error: result.error };
 
-      for (const matchScore of result.newScores) {
-        posthog.capture({
-          distinctId: user.id,
-          event: "job_found",
-          properties: { userId: user.id, source: "search", matchScore },
-        });
+        for (const matchScore of result.newScores) {
+          posthog.capture({
+            distinctId: user.id,
+            event: "job_found",
+            properties: { userId: user.id, source: "search", matchScore },
+          });
+        }
+
+        return {
+          ok: true,
+          data: {
+            message: buildFindMessage(result, jobTitle, location),
+            found: result.found,
+            newCount: result.newCount,
+            strongMatches: result.strongMatches,
+          },
+        };
+      } catch (error) {
+        console.error("[agent/find]", error);
+        return { ok: false, error: "We couldn't complete your search. Please try again." };
+      } finally {
+        // Events are lost without this, and it runs before the `done` event so they are out before the client is told it finished.
+        // A failed flush must not turn a finished search into an error.
+        await posthog.shutdown().catch((error: unknown) => console.error("[agent/find] posthog shutdown failed", error));
       }
-
-      return NextResponse.json<FindJobsResponse>({
-        success: true,
-        data: {
-          message: buildFindMessage(result, jobTitle, location),
-          found: result.found,
-          newCount: result.newCount,
-          strongMatches: result.strongMatches,
-        },
-      });
-    } finally {
-      // Events are lost without this; a failed flush must not turn a finished search into an error.
-      await posthog.shutdown().catch((error: unknown) => console.error("[agent/find] posthog shutdown failed", error));
-    }
+    });
   } catch (error) {
     console.error("[agent/find]", error);
     return fail("We couldn't complete your search. Please try again.", 500);

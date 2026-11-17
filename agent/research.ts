@@ -1,11 +1,20 @@
 import { browserbase, Stagehand, type StagehandBrowser } from "@browserbasehq/stagehand";
 import { z } from "zod";
 import { describeProfile } from "@/agent/matcher";
-import { fallbackHomepage, homepageFromUrl, isSafePublicHost, parseModelDossier, parseWebsiteAnswer, pickSubPages } from "@/lib/companyResearch";
+import {
+  fallbackHomepage,
+  homepageFromUrl,
+  isSafePublicHost,
+  parseModelDossier,
+  parseWebsiteAnswer,
+  pickSubPages,
+  type ResearchStageId,
+} from "@/lib/companyResearch";
 import { safeHttpUrl } from "@/lib/jobDetails";
 import { logAgent } from "@/lib/insforge/agentLogs";
 import type { createInsforgeServer } from "@/lib/insforge/server";
 import { APIError, describeOpenAIError, openai } from "@/lib/openai";
+import type { ProgressListener } from "@/lib/progress";
 import type { CompanyDossier, ProfileRow, ResearchJob } from "@/types";
 
 type InsforgeServer = Awaited<ReturnType<typeof createInsforgeServer>>;
@@ -188,6 +197,7 @@ async function browseCompany(
   userId: string,
   job: ResearchJob,
   homepageUrl: string,
+  report?: ProgressListener<ResearchStageId>,
 ): Promise<BrowseResult> {
   const result: BrowseResult = { homepage: null, pages: [], visited: [] };
   const apiKey = process.env.BROWSERBASE_API_KEY;
@@ -197,6 +207,8 @@ async function browseCompany(
     return result;
   }
 
+  // Only now is a browser really about to open, so an unconfigured run shows "read" as skipped.
+  report?.({ type: "stage", stage: "read" });
   const deadline = Date.now() + BROWSE_BUDGET_MS;
   let browser: StagehandBrowser | null = null;
   let stagehand: Stagehand | null = null;
@@ -237,8 +249,17 @@ async function browseCompany(
     }
     result.homepage = homepage;
 
-    for (const url of pickSubPages(homepage.pageLinks, homepageUrl)) {
-      if (deadline - Date.now() < MIN_TIME_FOR_ANOTHER_PAGE_MS) break;
+    // Counts pages tried, the homepage included. The total is only known once the homepage has named its links.
+    const subPages = pickSubPages(homepage.pageLinks, homepageUrl);
+    const total = 1 + subPages.length;
+    let tried = 1;
+    report?.({ type: "count", stage: "read", done: tried, total });
+    for (const url of subPages) {
+      if (deadline - Date.now() < MIN_TIME_FOR_ANOTHER_PAGE_MS) {
+        // The time budget cut the list short: say so, instead of leaving "2 of 4" on screen for a run that is finished.
+        report?.({ type: "count", stage: "read", done: tried, total: tried });
+        break;
+      }
       try {
         await page.goto(url, { waitUntil: "domcontentloaded", timeout: PAGE_LOAD_TIMEOUT_MS });
         const { data } = await stagehand.extract(SUB_PAGE_INSTRUCTION, subPageSchema, {
@@ -250,6 +271,8 @@ async function browseCompany(
       } catch (error) {
         await logAgent(insforge, null, userId, "warning", `Could not read ${url}: ${describeError(error)}`, job.id);
       }
+      tried += 1;
+      report?.({ type: "count", stage: "read", done: tried, total });
     }
   } catch (error) {
     await logAgent(insforge, null, userId, "warning", `Browser research stopped: ${describeError(error)}`, job.id);
@@ -318,19 +341,22 @@ export async function researchCompany(
   userId: string,
   job: ResearchJob,
   profile: ProfileRow,
+  report?: ProgressListener<ResearchStageId>,
 ): Promise<ResearchOutcome> {
   try {
     await logAgent(insforge, null, userId, "info", `Started researching ${job.company}.`, job.id);
 
+    report?.({ type: "stage", stage: "site" });
     const homepage = await resolveHomepage(job);
     let research: BrowseResult = { homepage: null, pages: [], visited: [] };
     if (homepage) {
       await logAgent(insforge, null, userId, "info", `Reading ${homepage.url} (found from the ${homepage.via}).`, job.id);
-      research = await browseCompany(insforge, userId, job, homepage.url);
+      research = await browseCompany(insforge, userId, job, homepage.url, report);
     } else {
       await logAgent(insforge, null, userId, "warning", "No company website could be found, so the briefing uses the job and your profile only.", job.id);
     }
 
+    report?.({ type: "stage", stage: "write" });
     const dossier = await synthesizeDossier(job, profile, research);
     if (!dossier) {
       await logAgent(insforge, null, userId, "error", "The briefing came back unusable.", job.id);

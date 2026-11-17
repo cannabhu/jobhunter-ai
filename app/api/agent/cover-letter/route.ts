@@ -7,12 +7,14 @@ import {
   COVER_LETTER_WINDOW_MS,
   PROFILE_NEEDS_DATA_FOR_LETTER,
   hasEnoughForCoverLetter,
+  type CoverLetterStageId,
 } from "@/lib/coverLetter";
 import { coverLetterSchema } from "@/lib/coverLetterSchema";
 import { getJobForCoverLetter, saveCoverLetter } from "@/lib/insforge/jobs";
 import { getProfile } from "@/lib/insforge/profile";
 import { createInsforgeServer, getUser } from "@/lib/insforge/server";
 import { createPostHogServer } from "@/lib/posthog-server";
+import { streamProgress } from "@/lib/progressStream";
 import { rowToFormValues } from "@/lib/profileMapping";
 import { checkRateLimit, releaseRateLimit } from "@/lib/rateLimit";
 import type { CoverLetterResponse } from "@/types";
@@ -22,7 +24,10 @@ export const maxDuration = 60;
 
 const fail = (error: string, status: number) => NextResponse.json<CoverLetterResponse>({ success: false, error }, { status });
 
-/** Writes a cover letter for one saved job and saves it on the job. Running it again replaces the letter. */
+/**
+ * Writes a cover letter for one saved job and saves it on the job. Running it again replaces the letter.
+ * Checks answer as JSON with a real status; once they pass, the work streams its stages (write, save) as NDJSON.
+ */
 export async function POST(req: NextRequest) {
   try {
     const user = await getUser();
@@ -51,35 +56,45 @@ export async function POST(req: NextRequest) {
       return fail(`You've written several cover letters recently. Please try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`, 429);
     }
 
-    let letter;
-    try {
-      letter = await writeCoverLetter(job, profile, tone);
-    } catch (error) {
-      if (error instanceof CoverLetterUnavailableError) {
-        // OpenAI refused or timed out, so no letter and no real cost: the turn is given back. A letter that came back
-        // unusable keeps its turn, because that call was paid for.
-        releaseRateLimit(limitKey);
-        return fail(COVER_LETTER_UNAVAILABLE, 503);
+    // Every check has passed, so from here the status is 200 and a failure is an `error` event.
+    return streamProgress<null, CoverLetterStageId>("agent/cover-letter", async (report) => {
+      report({ type: "stage", stage: "write" });
+      let letter;
+      try {
+        letter = await writeCoverLetter(job, profile, tone);
+      } catch (error) {
+        if (error instanceof CoverLetterUnavailableError) {
+          // OpenAI refused or timed out, so no letter and no real cost: the turn is given back. A letter that came back
+          // unusable keeps its turn, because that call was paid for.
+          releaseRateLimit(limitKey);
+          return { ok: false, error: COVER_LETTER_UNAVAILABLE };
+        }
+        console.error("[agent/cover-letter]", error);
+        return { ok: false, error: COVER_LETTER_FAILED };
       }
-      console.error("[agent/cover-letter]", error);
-      return fail(COVER_LETTER_FAILED, 500);
-    }
 
-    await saveCoverLetter(insforge, user.id, job.id, letter.text, letter.tone);
+      report({ type: "stage", stage: "save" });
+      try {
+        await saveCoverLetter(insforge, user.id, job.id, letter.text, letter.tone);
+      } catch (error) {
+        console.error("[agent/cover-letter] save failed", error);
+        return { ok: false, error: COVER_LETTER_FAILED };
+      }
 
-    const posthog = createPostHogServer();
-    try {
-      posthog.capture({
-        distinctId: user.id,
-        event: "cover_letter_generated",
-        properties: { userId: user.id, jobId: job.id, company: job.company },
-      });
-    } finally {
-      // Events are lost without this; a failed flush must not turn a finished letter into an error.
-      await posthog.shutdown().catch((error: unknown) => console.error("[agent/cover-letter] posthog shutdown failed", error));
-    }
+      const posthog = createPostHogServer();
+      try {
+        posthog.capture({
+          distinctId: user.id,
+          event: "cover_letter_generated",
+          properties: { userId: user.id, jobId: job.id, company: job.company },
+        });
+      } finally {
+        // Events are lost without this; a failed flush must not turn a finished letter into an error.
+        await posthog.shutdown().catch((error: unknown) => console.error("[agent/cover-letter] posthog shutdown failed", error));
+      }
 
-    return NextResponse.json<CoverLetterResponse>({ success: true });
+      return { ok: true, data: null };
+    });
   } catch (error) {
     console.error("[agent/cover-letter]", error);
     return fail(COVER_LETTER_FAILED, 500);

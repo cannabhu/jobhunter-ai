@@ -1,7 +1,22 @@
 import { safeHttpUrl } from "@/lib/jobDetails";
+import type { StageDef } from "@/lib/progress";
 import type { CompanyDossier } from "@/types";
 
 export const RESEARCH_PATH = "/api/agent/research";
+
+/**
+ * The steps of one research run, in order. "prepare" runs in the browser until the route's checks pass; the route and the
+ * agent report the rest. "read" is skipped when no website was found or the browser was not available.
+ */
+export const RESEARCH_STAGES = [
+  { id: "prepare", label: "Checking the job and your profile" },
+  { id: "site", label: "Finding the company website" },
+  { id: "read", label: "Reading company pages" },
+  { id: "write", label: "Writing your briefing" },
+  { id: "save", label: "Saving the briefing" },
+] as const satisfies readonly StageDef[];
+
+export type ResearchStageId = (typeof RESEARCH_STAGES)[number]["id"];
 
 /** A run costs Browserbase minutes and several GPT-4o calls, so one user gets this many per window. */
 export const RESEARCH_LIMIT = 3;

@@ -1,56 +1,61 @@
-# Memory — Features 18 and 19: Cover Letters (JobPilot / job-rider)
+# Memory — Streamed progress for the AI buttons (JobPilot / job-rider)
 
 Last updated: 2026-11-17
 
 ## What was built
 
-- **Feature 18 (Cover Letter card UI) is committed** (`6e3283f`, `aee0cd1`). Branch `development`.
-- **Feature 19 (AI Cover Letter Generation) is built and ticked in `context/progress-tracker.md`, but nothing for it is committed.** Uncommitted: the new files `actions/coverLetter.ts`, `agent/coverLetter.ts`, `app/api/agent/cover-letter/route.ts`, `db/migrations/003_cover_letters.sql`, `lib/coverLetter.ts`, `lib/coverLetterContent.ts`, `lib/coverLetterSchema.ts`, plus edits to `CoverLetter.tsx`, the job page, `lib/insforge/jobs.ts`, `lib/rateLimit.ts`, the profile tone files (`profileSchema`, `profileFormData`, `profileMapping`, `profileConstants`), `types/index.ts`, the `context/*.md` docs, and `FilterSelect` moved to `components/shared/`.
-- **Route flow** (`POST /api/agent/cover-letter`): 401 signed out, 400 bad body, 404 job not the user's, 422 profile not ready, 429 rate limit, 503 OpenAI outage or quota, 500 other; on success it saves the letter and sends the `cover_letter_generated` PostHog event.
-- **This session: the per-letter tone now actually works.** `/review` found the card sent `tone` but the zod schema stripped it, so every letter used the profile tone. Fixed in three files: `lib/coverLetterSchema.ts` (optional `tone`, enum of the three tones), `app/api/agent/cover-letter/route.ts` (reads `tone`, passes it on), `agent/coverLetter.ts` (`writeCoverLetter(job, profile, requestedTone?)`: request tone, then profile tone, then formal). The saved `cover_letter_tone` is the tone used.
-- **This session: word target lowered to 150 to 200** in `context/build-plan.md` and `context/progress-tracker.md`. The prompt already said this, so no code changed.
-- Full detail of earlier work is in `context/progress-tracker.md` (entries for 18, 19, the follow-ups and the review fixes).
+All of it is **uncommitted** on branch `development` (25 changed paths). The loading UX work from the previous session is already committed (`701c3c7`); the old note saying it was uncommitted was wrong.
+
+- **Protocol and helpers.** `lib/progress.ts` (event types `stage` / `count` / `done` / `error`, `StageDef`, `ProgressListener`, `PREPARE_STAGE_ID`, `PROGRESS_INTERRUPTED`), `lib/progressStream.ts` (`streamProgress(route, run)` returns an NDJSON `Response`), `lib/progressClient.ts` (`runProgressAction()` reads the lines and returns `{ ok, data }` or `{ ok: false, error, status, interrupted }`).
+- **UI.** `components/shared/ProgressSteps.tsx` (step checklist, `card` and `inline` variants), `components/shared/useProgressAction.ts` (client hook: stage, reached stages, counts). It replaces the static `role="status"` lines on all six actions.
+- **Six routes now stream** (checks still answer as JSON with real statuses, then NDJSON): `app/api/agent/cover-letter`, `agent/research`, `agent/find`, `resume/extract`, `resume/generate`.
+- **Stage lists** live with each action's constants: `COVER_LETTER_STAGES` (lib/coverLetter.ts), `RESEARCH_STAGES` (lib/companyResearch.ts), `FIND_JOBS_STAGES` (lib/findJobs.ts), `RESUME_EXTRACT_STAGES` and `RESUME_GENERATE_STAGES` (lib/resume.ts). The first stage, `prepare`, is driven only by the browser.
+- **Agents** take an optional last parameter `report?: ProgressListener`: `researchCompany` (agent/research.ts: site, read with a pages-tried count, write) and `discoverJobs` (agent/adzuna.ts: search, score with a count as each parallel call settles, save).
+- **Clients moved to the hook:** `CoverLetter.tsx`, `CompanyResearch.tsx`, `ResumeUpload.tsx`, `SearchControls.tsx`.
+- **Docs:** `context/architecture.md` (file list, a "Streamed progress" data flow, a new invariant), `context/code-standards.md` (a "Streamed routes" section), `context/ui-registry.md` (full "Progress checklist" entry, so `/imprint` is done for `ProgressSteps`), `context/progress-tracker.md` (a "Streamed progress" entry).
 
 ## Decisions made
 
-- **One letter per job, stored on `jobs`;** a fourth column `cover_letter_tone` records the tone the letter was written in. No version history, no PDF.
-- **Tone is no longer profile-only.** Precedence: the card dropdown (this letter only), then the profile tone, then formal. The card does not change the profile. This reverses the architect decision.
-- **Edits are saved** via the Server Action `saveCoverLetterEdits`; generation goes through the API route. Regenerate replaces the letter and confirms first only when there are edits.
-- **Rate limit** is 5 per 10 minutes (`cover-letter:{userId}`). Letters and edits are capped at 5,000 characters. Output under 400 characters is rejected, as are template placeholders such as `[Your Name]` and `{{..}}`.
-- **Word target is 150 to 200** (never fewer than 150), three short paragraphs. GPT-4o already writes about 190 to 215.
-- **Readiness check** (422) needs a full name plus skills or at least one work role. It runs before the rate limit, so a refused request costs no turn.
-- **No automatic retry** when GPT-4o's answer fails the checks. An unusable answer keeps its rate-limit turn; an OpenAI outage (503) gives it back with `releaseRateLimit()`.
-- **The company dossier is used when it exists.** Generating a letter never triggers research.
+- **Scope: all six actions** on one shared helper, reader and component.
+- **Honest stages only.** No percentages, no token streaming; counts only where the server has a real number. The cover letter is still validated whole before saving, so "nothing saved if unusable" still holds.
+- **Checks stay JSON with real statuses** (401, 400, 404, 422, 429) before the first byte; after it, failures are `error` events with the same user-facing messages. The 422 "go to your profile" link depends on that.
+- **Display: step checklist.** A stage the run never reached shows as skipped (research "read" only starts once the browser really opens; Find Jobs "score" and "save" are skipped when there is nothing to score or save).
+- **Disconnect: finish and save anyway.** No abort plumbing, no Cancel button. `report` is best-effort and never throws.
+- **Order kept:** save, then PostHog (flushed before the terminal event), then `done`. The cover letter still releases its rate-limit turn on an OpenAI outage. Find Jobs now flushes PostHog before `done`.
+- **No stream end means "interrupted":** the card shows "The connection dropped…" and refreshes anyway, in case the result saved.
+- **Headers:** `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`.
+- No new PostHog events, packages, tables or migrations.
+- Earlier decisions still stand: skeleton per page (not `loading.tsx`), footer stays mounted while the jobs table loads, cover letter tone precedence card then profile then formal, 5 letters per 10 minutes, 5,000 character cap.
 
 ## Problems solved
 
-- **The tracker described the tone feature as done while the code did not have it.** The code edits for the per-letter tone were missing from disk even though the docs claimed them. Lesson: before committing, check what is really on disk with `git diff --stat` and `grep`, not the tracker.
-- **Next 16.4.6 passes `retry`, not `reset`, to `error.tsx`.** Docs: `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/error.md`.
-- **Doc edits vanished twice** in an earlier session after the tool reported success. Cause unknown; the iCloud-synced Desktop is a suspect. After any doc edit, check from disk (checked again this session; the edits held).
-- **`tsc --noEmit` shows errors only from stale `.next/types/* 2.ts` copies** (`routes.d 2.ts` and others, likely iCloud duplicates). Filter them out with `| grep -v "^\.next/"`; source files are clean.
-- **GPT-4o said "over a year" for a four-year role.** Fixed by adding `TODAY` to the prompt.
-- **Visual check without signing in:** add a temporary public route outside `/dashboard`, `/profile`, `/find-jobs` and `/sign-out`, render the component with mock props, screenshot with headless Chrome (`--headless=new --window-size=1440,2600 --screenshot=...`) against the dev server on port 3000, then delete the route.
-- **A running dev server must be restarted** to pick up the new functions in `lib/insforge/jobs.ts`.
-- **zsh:** quote `--include='*.md'` in grep, or the glob fails.
+- **Streaming under production compression:** chunk timing was checked under `next dev` and `next start` with gzip on; chunks arrive as sent (`no-transform` is honoured).
+- **`revalidatePath` and `cookies()` inside a stream both work** (tested with a throwaway route on the dev server). The route handlers still create the InsForge client and read the profile before opening the stream.
+- **`next build` with a temporary mock page** failed the `cacheComponents` rule because the page read `searchParams` outside a Suspense; that was only the mock, not product code. Mock routes were deleted from the project.
+- **Headless screenshots:** `--virtual-time-budget` fast-forwards a mock run to its end. A mock mode that stalls (a long sleep on a count) gives a stable mid-run frame.
+- **Earlier, still useful:** `tsc --noEmit` shows errors only from stale `.next/types/* 2.ts` copies, so filter with `| grep -v "^\.next/"`. Build in a scratch copy (rsync without `node_modules`, `cp -Rc node_modules`) because the dev server owns `.next`. zsh: use `${=var}` for word splitting.
 
 ## Current state
 
-- **Works:** source-file `tsc` and eslint are clean on the files changed this session. Earlier: scripted helper checks passed, and two live GPT-4o runs gave grounded letters that did not claim the missing skill. The route returns 401 signed out.
-- **Not verified (needs a signed-in browser):** the tone fix end to end (profile formal, card casual, letter and saved label both casual), Generate, Regenerate and its confirm, Save changes and the "Saved" label, the 404, 422, 429 and 503 paths, the PostHog event arriving, the tone dropdown in the profile (saving and pre-fill), the card at 1440px and 500px with a real letter, and the dashboard error card.
-- **Not checked:** the migration is recorded as applied through InsForge, but the InsForge MCP server failed to connect on 2026-11-17, so it was not re-checked.
-- **Minor, left as is:** a `tone` that is not one of the three returns the generic 400 "That job could not be found." The card only sends valid tones.
-- **Still owed from before:** feature 06 review issues (b), (d), (e); helper tests are not in the repo (no test runner); full job description fetch is not built; the dashboard checks from feature 17 (charts with data, empty state, error state, 60s cache, 429 on a fourth research run, another user's job id giving 404).
+- **Verified:** `tsc` and eslint clean on the whole project; `next build` passes with all six routes dynamic; raw chunk timing under dev and production; the checklist's done, current-with-count, skipped and interrupted states at 1000px and 500px (mock only); the pre-flight JSON status and the cut-stream case through the real helper and reader.
+- **Not verified (needs a signed-in browser):**
+  - All six real actions end to end, the stage wording on screen, the 401/404/422 link/429 paths, the 503 path with the cover letter turn given back, closing the tab mid-run and returning to a saved result, and Safari.
+  - The `company_researched`, `cover_letter_generated`, `job_search_started` and `job_found` events still firing once per run, and saved rows matching a non-streamed run.
+  - The `inline` checklist on Find Jobs is 4px closer to the form than the old line (`mt-3` vs `mt-4`).
+- **Not checked:** the `003_cover_letters.sql` migration is recorded as applied but the InsForge MCP was not re-queried.
+- **Still owed from before:** feature 06 review items (b), (d), (e); no test runner, so helper tests are not in the repo; full job description fetch is not built; the feature 17 dashboard checks (empty and error states, 60s cache, 429 on a fourth research run, another user's job id giving 404); cover letter checks (tone end to end, Regenerate confirm, Save changes, the profile tone dropdown, the card at 500px).
 
 ## Next session starts with
 
-1. Run `git diff --stat` and confirm the feature 19 files and the tone fix are on disk.
-2. Restart the dev server, sign in, and run through the "Not verified" list above. Fix anything that breaks.
-3. Commit feature 19 and the doc updates, then run `/review` before any demo.
+1. Run `git status` and `git diff --stat`, then commit in separate commits: the streaming protocol and helpers, the six routes with their clients, and the docs.
+2. Restart the dev server, sign in, and run all six actions (Find Jobs, a job's Research and Generate/Regenerate, the profile's Extract and Generate Resume), including the failure paths above. Fix anything that breaks.
+3. Run `/review` before any demo.
 
 ## Open questions
 
-- Why did the doc and code edits go missing? Consider moving the project out of the iCloud-synced Desktop.
-- Should the charts move to the InsForge `jobs` table so they match the stat cards?
-- Why does PostHog `identify` never fire on the client?
-- A long research or cover letter request could outlive the access token or the host's time limit once deployed; the in-memory rate limiter and chart cache need a shared version for serverless.
+- Why did earlier doc and code edits go missing? (This session's doc edits held; the iCloud-synced Desktop is still a suspect.)
+- Should the charts move to the InsForge `jobs` table so they match the stat cards? Why does PostHog `identify` never fire on the client?
+- Hosting: a Node host keeps a route running after the client leaves; a serverless host may not. The in-memory rate limiter and chart cache also need a shared version before serverless. A 120 s research run could outlive the access token.
+- OpenAI's 45 s timeout with one retry can exceed `maxDuration = 60` on four of the routes (not changed here).
 - Repeat jobs are skipped, not re-scored, so old match scores go stale when the profile changes.
+- Should search-run activity entries link to `/find-jobs`?

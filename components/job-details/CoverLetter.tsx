@@ -9,9 +9,11 @@ import { LetterSkeleton } from "@/components/job-details/LetterSkeleton";
 import { SectionIcon } from "@/components/job-details/SectionIcon";
 import { AsyncActionButton } from "@/components/shared/AsyncActionButton";
 import { FilterSelect } from "@/components/shared/FilterSelect";
+import { ProgressSteps } from "@/components/shared/ProgressSteps";
+import { useProgressAction } from "@/components/shared/useProgressAction";
 import { COVER_LETTER_TONE_VALUES } from "@/lib/profileConstants";
-import { COVER_LETTER_FAILED, COVER_LETTER_MAX_CHARS, COVER_LETTER_PATH, resolveTone } from "@/lib/coverLetter";
-import type { CoverLetterResponse, CoverLetterTone, SavedCoverLetter } from "@/types";
+import { COVER_LETTER_FAILED, COVER_LETTER_MAX_CHARS, COVER_LETTER_PATH, COVER_LETTER_STAGES, resolveTone } from "@/lib/coverLetter";
+import type { CoverLetterTone, SavedCoverLetter } from "@/types";
 
 type Props = {
   jobId: string;
@@ -55,6 +57,7 @@ export function CoverLetter({ jobId, company, letter, defaultTone }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [needsProfile, setNeedsProfile] = useState(false);
   const [saved, setSaved] = useState(false);
+  const { progress, run } = useProgressAction<null>(COVER_LETTER_FAILED);
   // Held until the refreshed page has the saved letter, so the card never flashes back to its old state.
   const busy = generating || saving || refreshing;
 
@@ -78,21 +81,15 @@ export function CoverLetter({ jobId, company, letter, defaultTone }: Props) {
     setNeedsProfile(false);
     setSaved(false);
     try {
-      const response = await fetch(COVER_LETTER_PATH, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, tone }),
-      });
-      const result: CoverLetterResponse | null = await response.json().catch(() => null);
-      if (!response.ok || !result?.success) {
-        setError(result && !result.success ? result.error : COVER_LETTER_FAILED);
-        setNeedsProfile(response.status === 422);
+      const outcome = await run(COVER_LETTER_PATH, { jobId, tone });
+      if (!outcome.ok) {
+        setError(outcome.error);
+        setNeedsProfile(outcome.status === 422);
+        // An interrupted stream may still have saved the letter, so show whatever is there.
+        if (outcome.interrupted) startRefresh(() => router.refresh());
         return;
       }
       startRefresh(() => router.refresh());
-    } catch (generateError) {
-      console.error("[CoverLetter]", generateError);
-      setError(COVER_LETTER_FAILED);
     } finally {
       setGenerating(false);
     }
@@ -190,11 +187,7 @@ export function CoverLetter({ jobId, company, letter, defaultTone }: Props) {
           </div>
         </div>
       ) : null}
-      {writing ? (
-        <p role="status" className="border-b border-border px-6 py-3 text-sm text-text-secondary">
-          Writing your cover letter for {company} from your profile and this job. This usually takes under a minute.
-        </p>
-      ) : null}
+      {writing ? <ProgressSteps stages={COVER_LETTER_STAGES} progress={progress} label={`Progress writing your cover letter for ${company}`} /> : null}
       {error ? (
         <p role="alert" className="border-b border-border px-6 py-3 text-sm text-error">
           {error}
