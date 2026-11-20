@@ -19,7 +19,9 @@ After building any component — update this file with the component name, file 
 ## Components
 
 ### Navbar — `components/layout/Navbar.tsx`
-Header `w-full border-b border-border bg-surface`; inner `grid h-16 max-w-[1440px] grid-cols-[1fr_auto_1fr] px-6`. Nav link `text-sm font-medium`, active `text-accent`, inactive `text-text-dark`. CTA `rounded-md bg-overlay px-4 py-2 text-sm font-medium text-accent-foreground`.
+Header `relative w-full border-b border-border bg-surface`; inner `mx-auto flex h-16 max-w-[1440px] items-center justify-between px-4 sm:px-6 md:grid md:grid-cols-[1fr_auto_1fr]`. Nav link `text-sm font-medium`, active `text-accent`, inactive `text-text-dark`. CTA `whitespace-nowrap rounded-md bg-overlay px-3 py-2 text-sm font-medium text-accent-foreground sm:px-4`.
+
+**Mobile (below `md`):** the inline links are `hidden md:flex`; a hamburger button (`size-11`, `md:hidden`, lucide `Menu`/`X` at `size-5`, `aria-expanded`, `aria-controls`; accent colour while open) sits next to the CTA. It opens a floating panel: `absolute inset-x-0 top-full z-50 mx-3 mt-2 rounded-xl border border-border bg-linear-to-br from-accent-muted via-surface to-info-lightest p-2 shadow-card motion-safe:animate-menu-in` (`menu-in` is a 160ms fade and 8px slide, defined in the `@theme` block of `globals.css`). Behind it a backdrop `absolute inset-x-0 top-full z-40 h-dvh bg-overlay/30` closes the menu on tap. Each row: `h-14 gap-3 rounded-lg px-3 text-sm font-medium`, a `size-9 rounded-md border border-border bg-surface` icon tile (lucide `LayoutDashboard`, `Search`, `User` at `size-4`, the same icons as `AppNavbarBar`), the label, and a `ChevronRight` (`text-text-muted`). Active row: `bg-surface/70 text-accent` plus `aria-current="page"`; pressed: `active:bg-surface/80`. Closes on row tap, backdrop tap and Escape.
 
 ### NavbarActions / AuthCtaButtons — `components/layout/NavbarActions.tsx`, `components/homepage/AuthCtaButtons.tsx`
 Server components that read the session inside `<Suspense>`; the signed-out version is the fallback. Signed in: single "Go to Dashboard" dark button (same classes as the Navbar CTA). No sign-out control in the navbar. CtaButtons takes `isAuthed` (Get Started → Go to Dashboard).
@@ -56,7 +58,7 @@ All three screens (login, sign-out, 404) share one shell: a centred card on the 
 - Icons must stay `currentColor` so they never need hardcoded brand colours.
 
 ### Footer — `components/layout/Footer.tsx`
-`max-w-[1280px] border-x border-t border-border bg-surface`, row `px-6 py-10`, links `text-xs font-medium text-text-dark`.
+`max-w-[1280px] border-x border-t border-border bg-surface`, row `flex flex-col items-center gap-6 px-6 py-10 sm:flex-row sm:justify-between` (stacked, centred below `sm`), links nav `flex flex-wrap items-center justify-center gap-x-6 gap-y-2`, links `text-xs font-medium text-text-dark`.
 
 ### CtaButtons — `components/homepage/CtaButtons.tsx`
 Dark: `rounded-md bg-overlay px-5 py-2.5 text-sm font-medium text-accent-foreground shadow-card`. Light: `rounded-md border border-border bg-surface px-5 py-2.5 text-sm font-medium text-text-primary shadow-card`.

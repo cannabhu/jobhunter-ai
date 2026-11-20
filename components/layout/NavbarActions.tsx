@@ -4,7 +4,7 @@ import { getUser } from "@/lib/insforge/server";
 import { SIGNED_IN_HOME } from "@/lib/routes";
 
 const button =
-  "rounded-md bg-overlay px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-overlay-dark";
+  "whitespace-nowrap rounded-md bg-overlay px-3 py-2 text-sm font-medium text-accent-foreground hover:bg-overlay-dark sm:px-4";
 
 function SignedOut() {
   return (

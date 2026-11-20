@@ -3,7 +3,7 @@ import { SIGNED_IN_HOME } from "@/lib/routes";
 
 export function CtaButtons({ isAuthed, location }: { isAuthed: boolean; location: string }) {
   return (
-    <div className="flex items-center justify-center gap-3">
+    <div className="flex flex-wrap items-center justify-center gap-3">
       <TrackedLink
         location={location}
         href={isAuthed ? SIGNED_IN_HOME.href : "/login"}
